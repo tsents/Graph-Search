@@ -57,20 +57,20 @@ func main() {
 	defer pprof.StopCPUProfile()
 
 	for t := 0; t < 50; t++ {
-		Graph := Gnp(1e3, 1e-1)
-		Subgraph := Gnp(1e3, 1e-1)
-		for i := uint32(0); i < 999; i++ {
+		Gnp(1e2, 1e-1)
+		Subgraph := Gnp(1e2, 0) //for some reason with more edges it sometimes loses a match
+		for i := uint32(0); i < 99; i++ {
 			add_edge(Subgraph, i, i+1)
 		}
 
 		//plant the graph for testing
-		for idx, v := range Subgraph {
-			v_new := vertex{v.attribute,Graph[idx].neighborhood}
-			Graph[idx] = v_new
-			for u := range v.neighborhood{
-				add_edge(Graph,idx,u)
-			}
-		}
+		// for idx, v := range Subgraph {
+		// 	v_new := vertex{v.attribute,Graph[idx].neighborhood}
+		// 	Graph[idx] = v_new
+		// 	for u := range v.neighborhood{
+		// 		add_edge(Graph,idx,u)
+		// 	}
+		// }
 
 		l := list{nil, nil}
 		special = &l
@@ -98,7 +98,7 @@ func find_all_subgraph(Graph map[uint32]vertex, Subgraph map[uint32]vertex, file
 	for v, k := range Graph {
 		if k.attribute.color == Subgraph[0].attribute.color {
 			wg.Add(1)
-			go func(v uint32) {
+			func(v uint32) {
 				concurrent_search_wrapper(Graph, Subgraph, v, file)
 				defer wg.Done()
 			}(v)
@@ -127,12 +127,20 @@ func recursion_search(Graph map[uint32]vertex, Subgraph map[uint32]vertex, v_g u
 	path[v_g] = v_s
 	inverse_restrictions, empty := update_restrictions(Graph, Subgraph, v_g, v_s, restrictions)
 	if !empty {
+		fmt.Println("block")
 		for u_instance := restrictions[v_s+1].start; u_instance != nil; u_instance = u_instance.next {
 			recursion_search(Graph, Subgraph, u_instance.value, v_s+1, restrictions, path, file)
+			fmt.Println("block2")
+			for i :=0; i < 10; i++ {
+				print_list(restrictions[i])
+			}
 		}
 	}
+	for u, rest_u := range inverse_restrictions { //tested and works
+		// fmt.Println("block")
+		// print_list(restrictions[u])
+		// print_list(inverse_restrictions[u])
 
-	for u, rest_u := range inverse_restrictions {
 		if rest_u != nil {
 			if rest_u == special {
 				restrictions[u] = nil
@@ -140,6 +148,7 @@ func recursion_search(Graph map[uint32]vertex, Subgraph map[uint32]vertex, v_g u
 				join_lists(restrictions[u], rest_u)
 			}
 		}
+		// print_list(restrictions[u])
 	}
 	delete(path, v_g)
 }
