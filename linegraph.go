@@ -57,11 +57,21 @@ func main() {
 	defer pprof.StopCPUProfile()
 
 	for t := 0; t < 50; t++ {
-		Graph := Gnp(1e4, 1e-3)
-		Subgraph := Gnp(1e2, 1e-2)
-		for i := uint32(0); i < 99; i++ {
+		Graph := Gnp(1e3, 1e-1)
+		Subgraph := Gnp(1e3, 1e-1)
+		for i := uint32(0); i < 999; i++ {
 			add_edge(Subgraph, i, i+1)
 		}
+
+		//plant the graph for testing
+		for idx, v := range Subgraph {
+			v_new := vertex{v.attribute,Graph[idx].neighborhood}
+			Graph[idx] = v_new
+			for u := range v.neighborhood{
+				add_edge(Graph,idx,u)
+			}
+		}
+
 		l := list{nil, nil}
 		special = &l
 		fmt.Println("starting search")
@@ -74,7 +84,7 @@ func main() {
 		defer file.Close()
 
 		start_t := time.Now()
-		find_all_subgraph(Graph, Subgraph, file)
+		find_all_subgraph(Subgraph, Subgraph, file)
 		diff_t := time.Now().Sub(start_t)
 		avg_time += diff_t.Seconds()
 		fmt.Println("time", diff_t)
@@ -142,21 +152,19 @@ func update_restrictions(G map[uint32]vertex, S map[uint32]vertex, v_g uint32, v
 			restrictions[u] = neighboorhood_with_color(G, v_g, S[u].attribute.color)
 			inverse_restrictions[u] = special
 		} else {
-			// prev := restrictions[u].start
+			temp_inverse := list{nil, nil}
+			temp_retriction := list{nil, nil}
 			for u_instance := restrictions[u].start; u_instance != nil; u_instance = u_instance.next {
-				temp_inverse := list{nil, nil}
-				temp_retriction := list{nil, nil}
-
 				if _, ok := G[v_g].neighborhood[u_instance.value]; ok {
 					list_append(&temp_retriction, u_instance.value)
 				} else {
 					list_append(&temp_inverse, u_instance.value)
 				}
-				restrictions[u] = &temp_retriction
-				inverse_restrictions[u] = &temp_inverse
-				if temp_retriction.start == nil {
-					empty = true
-				}
+			}
+			restrictions[u] = &temp_retriction
+			inverse_restrictions[u] = &temp_inverse
+			if temp_retriction.start == nil {
+				empty = true
 			}
 		}
 	}
