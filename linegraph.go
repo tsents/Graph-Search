@@ -36,7 +36,7 @@ func main() {
 	fmt.Println("hello world")
 	for t := 0; t < 50; t++{
 		G := Gnp(1e4, 1e-3)
-		S := Gnp(1e2, 1e-1)
+		S := Gnp(1e3, 1e-1)
 		for j := uint32(0); j < uint32(len(S)) - 1; j++{
 			AddEdge(S,j,j+1)
 		}
