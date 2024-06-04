@@ -2,8 +2,66 @@ package main
 
 import (
 	"math/rand/v2"
+	"sync"
 	"testing"
 )
+
+func TestSelfFind(t *testing.T){
+	var wg sync.WaitGroup
+	// for i := 0; i < 1; i++{ just slow and uninformetive
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		S := Gnp(10,1)
+	// 		RecursionSearch(S,S,0,0,make([]*list, len(S)),make(map[uint32]uint32))
+	// 		wg.Done()
+	// 	} ()
+	// }
+	for i := 0; i < 50; i++{
+		wg.Add(1)
+		go func () {
+			S := Gnp(1e2,1e-1)
+			for j := uint32(0); j < 99; j++{
+				AddEdge(S,j,j+1)
+			}
+			ret := RecursionSearch(S,S,0,0,make([]*list, len(S)),make(map[uint32]uint32))
+			if ret == 0 {
+				t.Errorf("didnt find itself")
+			}
+			wg.Done()
+		} ()
+	}
+
+	for i := 0; i < 40; i++{
+		wg.Add(1)
+		go func () {
+			S := Gnp(1e1,1e-1)
+			G := Gnp(1e2,1e-2)
+			for j := uint32(0); j < 10; j++{
+				AddVertex(G,1e2+j,S[j].attribute.color)
+			}
+			for j := uint32(0); j < 10; j++{
+				for k := uint32(0); k < 10; k++{
+					AddEdge(G,1e2+j,1e2+k)
+				}
+			}
+
+			for j := uint32(0); j < 9; j++{
+				AddEdge(S,j,j+1)
+			}
+			ret := 0
+			for u := uint32(0); u < uint32(len(G)); u++{
+				if G[u].attribute.color == S[0].attribute.color{
+					ret += RecursionSearch(G,S,u,0,make([]*list, len(S)),make(map[uint32]uint32))
+				}
+			}
+			if ret < 1 {
+				t.Errorf("Too little")
+			}
+			wg.Done()
+		} ()
+	}
+	wg.Wait()
+}
 
 func TestLists(t *testing.T) {
 	for j := 0; j < 1e3; j++{

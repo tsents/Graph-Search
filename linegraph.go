@@ -53,7 +53,45 @@ func main() {
 	// }
 }
 
-func update_restrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions []*list) ([]*list, bool) {
+func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
+	restrictions []*list, path map[uint32]uint32) int{
+	if _, ok := path[v_g]; ok {
+		return 0
+	}
+	if len(Subgraph) == (len(path) + 1) {
+		path[v_g] = v_s
+		// file.WriteString(fmt.Sprintf("%v\n", path))
+		// Verify_result(Graph,Subgraph,path)
+		// fmt.Println("ye", path)
+		delete(path, v_g)
+		return 1
+	}
+	ret := 0
+	path[v_g] = v_s
+	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions)
+	if !empty {
+		targets := []uint32{}
+		for u_instance := restrictions[v_s+1].start; u_instance != nil; u_instance = u_instance.next {
+			targets = append(targets, u_instance.value)
+		}
+		for i := 0; i < len(targets); i++{
+			ret += RecursionSearch(Graph, Subgraph, targets[i], v_s+1, restrictions, path)
+		}
+	}
+	for u := 0; u < len(inverse_restrictions); u++{
+		if inverse_restrictions[u] != nil {
+			if inverse_restrictions[u].start != nil && inverse_restrictions[u].start.value == ^uint32(0){
+				restrictions[u] = nil
+			} else {
+				restrictions[u] = JoinLists(restrictions[u],inverse_restrictions[u])
+			}
+		}
+	}
+	delete(path, v_g)
+	return ret
+}
+
+func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions []*list) ([]*list, bool) {
 	empty := false
 	inverse_restrictions := make([]*list, len(S))
 	for u := range S[v_s].neighborhood {
@@ -102,12 +140,19 @@ func SplitList(l *list,which discriminator) (*list,*list){
 }
 
 func JoinLists(l1 *list,l2 *list) *list {
+	if l2 == nil {
+		return l1
+	}
 	if l1 == nil {
 		return l2
 	}
 	if l1.start == nil{
 		return l2
 	}
+	if l2.start == nil{
+		return l1
+	}
+	// fmt.Println(l1,l2)
 	l1.end.next = l2.start
 	l1.end = l2.end
 	return l1
