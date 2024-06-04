@@ -9,6 +9,8 @@ type void struct{}
 
 type discriminator func(uint32) bool
 
+type graph map[uint32]vertex
+
 type element struct {
 	value uint32
 	next  *element
@@ -89,28 +91,28 @@ func ListAppend(l *list, el *element) {
 	l.end = el
 }
 
-func add_vertex(Graph map[uint32]vertex, u uint32, c uint8) {
+func AddVertex(Graph graph, u uint32, c uint8) {
 	if _, ok := Graph[u]; !ok {
 		Graph[u] = vertex{neighborhood: make(map[uint32]void), attribute: att{color: c}}
 	}
 }
 
-func add_edge(Graph map[uint32]vertex, u uint32, v uint32) {
+func AddEdge(Graph graph, u uint32, v uint32) {
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
 }
 
-func Gnp(n uint32, p float32) map[uint32]vertex {
-	Graph := make(map[uint32]vertex)
+func Gnp(n uint32, p float32) graph {
+	Graph := make(graph)
 	for i := uint32(0); i < n; i++ {
 		color := rand.N(5)
-		add_vertex(Graph, i, uint8(color))
+		AddVertex(Graph, i, uint8(color))
 	}
 
 	for i := uint32(0); i < n; i++ {
 		for j := i + 1; j < n; j++ {
 			if rand.Float32() <= p {
-				add_edge(Graph, i, j)
+				AddEdge(Graph, i, j)
 			}
 		}
 	}
