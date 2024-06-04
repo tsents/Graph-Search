@@ -53,6 +53,39 @@ func main() {
 	// }
 }
 
+func update_restrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions []*list) ([]*list, bool) {
+	empty := false
+	inverse_restrictions := make([]*list, len(S))
+	for u := range S[v_s].neighborhood {
+		if restrictions[u] == nil {
+			restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
+			el := element{^uint32(0),nil}
+			inverse_restrictions[u] = &list{&el,&el}
+		} else {
+			var dis discriminator = func(u_instance uint32) bool {
+				_, ok := G[v_g].neighborhood[u_instance];
+				return ok
+			}
+			restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u],dis)
+			if restrictions[u].start == nil {
+				empty = true
+			}
+		}
+	}
+	return inverse_restrictions, empty
+}
+
+func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint8) *list {
+	output := list{nil, nil}
+	for v := range Graph[u].neighborhood {
+		if Graph[v].attribute.color == c {
+			el := element{v,nil}
+			ListAppend(&output,&el)
+		}
+	}
+	return &output
+}
+
 func SplitList(l *list,which discriminator) (*list,*list){
 	l1 := &list{nil,nil}
 	l2 := &list{nil,nil}
