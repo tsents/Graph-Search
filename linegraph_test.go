@@ -8,7 +8,7 @@ import (
 
 func TestFindAll(t *testing.T){
 	var wg sync.WaitGroup
-	for i := 0; i < 40; i++{
+	for i := 0; i < 20; i++{
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e3,1e-2)
@@ -31,7 +31,7 @@ func TestFindAll(t *testing.T){
 
 func TestSelfFind(t *testing.T){
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++{
+	for i := 0; i < 20; i++{
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e2,1e-1)

@@ -35,7 +35,7 @@ type att struct {
 // idea - store Graph as map of vertex -> neighboorhood -> void (neighborhood is a set)
 func main() {
 	fmt.Println("hello world")
-	for t := 0; t < 50; t++ {
+	for t := 0; t < 10; t++ {
 		G := Gnp(1e4, 1e-3)
 		S := Gnp(1e3, 1e-1)
 		for j := uint32(0); j < uint32(len(S))-1; j++ {
