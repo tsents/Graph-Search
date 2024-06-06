@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 )
 
 type void struct{}
@@ -34,29 +35,32 @@ type att struct {
 // idea - store Graph as map of vertex -> neighboorhood -> void (neighborhood is a set)
 func main() {
 	fmt.Println("hello world")
-	for t := 0; t < 50; t++{
+	for t := 0; t < 50; t++ {
 		G := Gnp(1e4, 1e-3)
 		S := Gnp(1e3, 1e-1)
-		for j := uint32(0); j < uint32(len(S)) - 1; j++{
-			AddEdge(S,j,j+1)
+		for j := uint32(0); j < uint32(len(S))-1; j++ {
+			AddEdge(S, j, j+1)
 		}
-		FindAllSubgraph(G,S)
-		fmt.Println("done",t)
+		FindAllSubgraph(G, S)
+		fmt.Println("done 1e4 1e3", t)
 	}
 }
 
-func FindAllSubgraph(Graph graph, Subgraph graph) {
+func FindAllSubgraph(Graph graph, Subgraph graph) uint64{
 	var wg sync.WaitGroup
+	var ops atomic.Uint64
 	for u := uint32(0); u < uint32(len(Graph)); u++ {
 		if Graph[u].attribute.color == Subgraph[0].attribute.color {
 			wg.Add(1)
 			go func(u uint32) {
-				RecursionSearch(Graph, Subgraph, u, 0, make([]*list, len(Subgraph)), make(map[uint32]uint32))
+				ret := RecursionSearch(Graph, Subgraph, u, 0, make([]*list, len(Subgraph)), make(map[uint32]uint32))
+				ops.Add(uint64(ret))
 				wg.Done()
-			} (u)
+			}(u)
 		}
 	}
 	wg.Wait()
+	return ops.Load()
 }
 
 func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,

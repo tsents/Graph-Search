@@ -6,16 +6,31 @@ import (
 	"testing"
 )
 
+func TestFindAll(t *testing.T){
+	var wg sync.WaitGroup
+	for i := 0; i < 40; i++{
+		wg.Add(1)
+		go func () {
+			S := Gnp(1e3,1e-2)
+
+			for j := uint32(0); j < 1e3-1; j++{
+				AddEdge(S,j,j+1)
+			}
+
+			ret := FindAllSubgraph(S,S)
+			if ret != 1 {
+				t.Errorf("Find all multiple finds?")
+				t.Log(ret)
+			}
+			wg.Done()
+		} ()
+	}
+	wg.Wait()
+}
+
+
 func TestSelfFind(t *testing.T){
 	var wg sync.WaitGroup
-	// for i := 0; i < 1; i++{ just slow and uninformetive
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		S := Gnp(10,1)
-	// 		RecursionSearch(S,S,0,0,make([]*list, len(S)),make(map[uint32]uint32))
-	// 		wg.Done()
-	// 	} ()
-	// }
 	for i := 0; i < 50; i++{
 		wg.Add(1)
 		go func () {
