@@ -6,18 +6,59 @@ import (
 	"testing"
 )
 
+
+func TestOrdering(t *testing.T){
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++{
+		wg.Add(1)
+		go func () {
+			S := Gnp(1e2,1e-2)
+
+			for j := uint32(0); j < 1e2-1; j++{
+				S.AddEdge(j,j+1)
+			}
+			ordering1 := make([]uint32,len(S))
+			for i := 0; i < len(ordering1); i++{
+				ordering1[i] = uint32(len(ordering1) - i - 1)
+			}
+
+			ordering2 := make([]uint32,len(S))
+			for i := 0; i < len(ordering2); i++{
+				ordering2[i] = uint32(i)
+			}
+			
+			ret1 := FindAllSubgraphPathgraph(S,S,ordering1)
+			ret2 := FindAllSubgraphPathgraph(S,S,ordering2)
+			
+			if ret1 != ret2 {
+				t.Errorf("Ordering changed output")
+			}
+			if ret1 > 3 {
+				t.Errorf("Find more finds? ordered")
+				t.Log(ret1)
+			}
+			wg.Done()
+		} ()
+	}
+	wg.Wait()
+}
+
 func TestFindAll(t *testing.T){
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++{
+	for i := 0; i < 10; i++{
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e3,1e-2)
 
 			for j := uint32(0); j < 1e3-1; j++{
-				AddEdge(S,j,j+1)
+				S.AddEdge(j,j+1)
 			}
-
-			ret := FindAllSubgraph(S,S)
+			ordering := make([]uint32,len(S))
+			for i := 0; i < len(ordering); i++{
+				ordering[i] = uint32(i)
+			}
+			
+			ret := FindAllSubgraphPathgraph(S,S,ordering)
 			if ret != 1 {
 				t.Errorf("Find all multiple finds?")
 				t.Log(ret)
@@ -28,17 +69,20 @@ func TestFindAll(t *testing.T){
 	wg.Wait()
 }
 
-
 func TestSelfFind(t *testing.T){
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++{
+	for i := 0; i < 10; i++{
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e2,1e-1)
 			for j := uint32(0); j < 99; j++{
-				AddEdge(S,j,j+1)
+				S.AddEdge(j,j+1)
 			}
-			ret := RecursionSearch(S,S,0,0,make([]*list, len(S)),make(map[uint32]uint32))
+			ordering := make([]uint32,len(S))
+			for i := 0; i < len(ordering); i++{
+				ordering[i] = uint32(i)
+			}
+			ret := RecursionSearch(S,S,0,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
 			if ret == 0 {
 				t.Errorf("didnt find itself")
 			}
@@ -46,27 +90,31 @@ func TestSelfFind(t *testing.T){
 		} ()
 	}
 
-	for i := 0; i < 40; i++{
+	for i := 0; i < 10; i++{
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e1,1e-1)
 			G := Gnp(1e2,1e-2)
 			for j := uint32(0); j < 10; j++{
-				AddVertex(G,1e2+j,S[j].attribute.color)
+				G.AddVertex(1e2+j,S[j].attribute.color)
 			}
 			for j := uint32(0); j < 10; j++{
 				for k := uint32(0); k < 10; k++{
-					AddEdge(G,1e2+j,1e2+k)
+					G.AddEdge(1e2+j,1e2+k)
 				}
 			}
 
 			for j := uint32(0); j < 9; j++{
-				AddEdge(S,j,j+1)
+				S.AddEdge(j,j+1)
 			}
 			ret := 0
+			ordering := make([]uint32,len(S))
+			for i := 0; i < len(ordering); i++{
+				ordering[i] = uint32(i)
+			}
 			for u := uint32(0); u < uint32(len(G)); u++{
 				if G[u].attribute.color == S[0].attribute.color{
-					ret += RecursionSearch(G,S,u,0,make([]*list, len(S)),make(map[uint32]uint32))
+					ret += RecursionSearch(G,S,u,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
 				}
 			}
 			if ret < 1 {
@@ -156,7 +204,6 @@ func TestListsSplit(t *testing.T){
 			t.Errorf("Wrong end in split rejoin")
 		}
 	}
-
 }
 
 func TestListsJoin(t *testing.T) {

@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type void struct{}
@@ -35,25 +37,53 @@ type att struct {
 // idea - store Graph as map of vertex -> neighboorhood -> void (neighborhood is a set)
 func main() {
 	fmt.Println("hello world")
-	for t := 0; t < 10; t++ {
-		G := Gnp(1e4, 1e-3)
-		S := Gnp(1e3, 1e-1)
-		for j := uint32(0); j < uint32(len(S))-1; j++ {
-			AddEdge(S, j, j+1)
-		}
-		FindAllSubgraph(G, S)
-		fmt.Println("done 1e4 1e3", t)
-	}
+
+	G := ReadGraph("graph1.json")
+	S := ReadGraph("graph2.json")
+	ordering := ReadOrdering("ordering.json")
+	start := time.Now()
+	FindAllSubgraphPathgraph(G,S,ordering)
+	algo_time := time.Since(start)
+	fmt.Println("done", algo_time.Seconds())
+	// prof_file, err := os.Create("go_speed.prof")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// pprof.StartCPUProfile(prof_file)
+	// defer pprof.StopCPUProfile()
+
+	// for t := 0; t < 10; t++ {
+	// 	G := Gnp(1e3, 0.5)
+	// 	S := Gnp(1e2, 0.5)
+	// 	for j := uint32(0); j < uint32(len(S))-1; j++ {
+	// 		S.AddEdge(j, j+1)
+	// 	}
+	// 	ordering := make([]uint32, len(S))
+	// 	for i := 0; i < len(ordering); i++ {
+	// 		ordering[i] = uint32(i)
+	// 	}
+	// 	start := time.Now()
+	// 	FindAllSubgraphPathgraph(G, S, ordering)
+	// 	algo_time := time.Since(start)
+	// 	fmt.Println("done 1e3 1e2", algo_time.Seconds())
+	// }
 }
 
-func FindAllSubgraph(Graph graph, Subgraph graph) uint64{
+func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
+	t := time.Now()
+	f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
 	for u := uint32(0); u < uint32(len(Graph)); u++ {
-		if Graph[u].attribute.color == Subgraph[0].attribute.color {
+		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
 			wg.Add(1)
 			go func(u uint32) {
-				ret := RecursionSearch(Graph, Subgraph, u, 0, make([]*list, len(Subgraph)), make(map[uint32]uint32))
+				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint32]*list, len(Subgraph)),
+					make(map[uint32]uint32), f, ordering)
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
@@ -64,15 +94,15 @@ func FindAllSubgraph(Graph graph, Subgraph graph) uint64{
 }
 
 func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
-	restrictions []*list, path map[uint32]uint32) int {
+	restrictions map[uint32]*list, path map[uint32]uint32, file *os.File, ordering []uint32) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
 	if len(Subgraph) == (len(path) + 1) {
 		path[v_g] = v_s
-		// file.WriteString(fmt.Sprintf("%v\n", path))
-		// Verify_result(Graph,Subgraph,path)
-		// fmt.Println("ye", path)
+		if file != nil {
+			file.WriteString(fmt.Sprintf("%v\n", path))
+		}
 		delete(path, v_g)
 		return 1
 	}
@@ -81,14 +111,14 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions)
 	if !empty {
 		targets := []uint32{}
-		for u_instance := restrictions[v_s+1].start; u_instance != nil; u_instance = u_instance.next {
+		for u_instance := restrictions[ordering[len(path)]].start; u_instance != nil; u_instance = u_instance.next {
 			targets = append(targets, u_instance.value)
 		}
 		for i := 0; i < len(targets); i++ {
-			ret += RecursionSearch(Graph, Subgraph, targets[i], v_s+1, restrictions, path)
+			ret += RecursionSearch(Graph, Subgraph, targets[i], ordering[len(path)], restrictions, path, file, ordering)
 		}
 	}
-	for u := 0; u < len(inverse_restrictions); u++ {
+	for u := range inverse_restrictions {
 		if inverse_restrictions[u] != nil {
 			if inverse_restrictions[u].start != nil && inverse_restrictions[u].start.value == ^uint32(0) {
 				restrictions[u] = nil
@@ -101,9 +131,9 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	return ret
 }
 
-func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions []*list) ([]*list, bool) {
+func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions map[uint32]*list) (map[uint32]*list, bool) {
 	empty := false
-	inverse_restrictions := make([]*list, len(S))
+	inverse_restrictions := make(map[uint32]*list, len(S))
 	for u := range S[v_s].neighborhood {
 		if restrictions[u] == nil {
 			restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
@@ -179,13 +209,13 @@ func ListAppend(l *list, el *element) {
 	l.end = el
 }
 
-func AddVertex(Graph graph, u uint32, c uint8) {
+func (Graph graph) AddVertex(u uint32, c uint8) {
 	if _, ok := Graph[u]; !ok {
 		Graph[u] = vertex{neighborhood: make(map[uint32]void), attribute: att{color: c}}
 	}
 }
 
-func AddEdge(Graph graph, u uint32, v uint32) {
+func (Graph graph) AddEdge(u uint32, v uint32) {
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
 }
@@ -194,13 +224,13 @@ func Gnp(n uint32, p float32) graph {
 	Graph := make(graph)
 	for i := uint32(0); i < n; i++ {
 		color := rand.N(5)
-		AddVertex(Graph, i, uint8(color))
+		Graph.AddVertex(i, uint8(color))
 	}
 
 	for i := uint32(0); i < n; i++ {
 		for j := i + 1; j < n; j++ {
 			if rand.Float32() <= p {
-				AddEdge(Graph, i, j)
+				Graph.AddEdge(i, j)
 			}
 		}
 	}

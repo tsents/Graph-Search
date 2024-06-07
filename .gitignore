@@ -1,3 +1,4 @@
 dat/
 go_speed
-myprog.prof
+go_speed.prof
+*.json
