@@ -31,20 +31,25 @@ type vertex struct {
 }
 
 type att struct {
-	color uint8
+	color uint16
 }
 
 // idea - store Graph as map of vertex -> neighboorhood -> void (neighborhood is a set)
 func main() {
 	fmt.Println("hello world")
 
-	G := ReadGraph("graph1.json")
 	S := ReadGraph("graph2.json")
-	ordering := ReadOrdering("ordering.json")
-	start := time.Now()
-	FindAllSubgraphPathgraph(G,S,ordering)
-	algo_time := time.Since(start)
-	fmt.Println("done", algo_time.Seconds())
+	ordering := ReadOrdering("ordering_graph2.json")
+	for i := 0; i < len(ordering) - 1; i++{
+		fmt.Println(S[ordering[i]],ordering[i],ordering[i+1])
+	}
+	for i := 0; i < 8; i++{
+		G := ReadGraph(fmt.Sprintf("graph%v.json",i))
+		start := time.Now()
+		FindAllSubgraphPathgraph(G,S,ordering)
+		algo_time := time.Since(start)
+		fmt.Println("done", algo_time.Seconds())
+	}
 	// prof_file, err := os.Create("go_speed.prof")
 	// if err != nil {
 	// 	panic(err)
@@ -153,7 +158,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions m
 	return inverse_restrictions, empty
 }
 
-func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint8) *list {
+func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint16) *list {
 	output := list{nil, nil}
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
@@ -209,7 +214,7 @@ func ListAppend(l *list, el *element) {
 	l.end = el
 }
 
-func (Graph graph) AddVertex(u uint32, c uint8) {
+func (Graph graph) AddVertex(u uint32, c uint16) {
 	if _, ok := Graph[u]; !ok {
 		Graph[u] = vertex{neighborhood: make(map[uint32]void), attribute: att{color: c}}
 	}
@@ -224,7 +229,7 @@ func Gnp(n uint32, p float32) graph {
 	Graph := make(graph)
 	for i := uint32(0); i < n; i++ {
 		color := rand.N(5)
-		Graph.AddVertex(i, uint8(color))
+		Graph.AddVertex(i, uint16(color))
 	}
 
 	for i := uint32(0); i < n; i++ {
