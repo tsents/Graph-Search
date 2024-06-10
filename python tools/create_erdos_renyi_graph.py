@@ -38,14 +38,14 @@ def generate_subgraph(G, fraction=0.1):
 
 
 if __name__ == '__main__':
-    # G, node_to_label, label_to_node = generate_graph(5, 0.5, 400)
-    # subgraph = generate_subgraph(G, 0.1)
-    # sub_node_to_label = {node: node_to_label[node] for node in subgraph.nodes()}
-    # sub_label_to_node = {label: [node for node in nodes if node in subgraph.nodes()] for label, nodes in
-    #                      label_to_node.items()}
-    # temp_for_save_sub = (subgraph, sub_node_to_label, sub_label_to_node)
+    G, node_to_label, label_to_node = generate_graph(5, 0.1, 50)
+    subgraph = generate_subgraph(G, 0.1)
+    sub_node_to_label = {node: node_to_label[node] for node in subgraph.nodes()}
+    sub_label_to_node = {label: [node for node in nodes if node in subgraph.nodes()] for label, nodes in
+                         label_to_node.items()}
+    temp_for_save_sub = (subgraph, sub_node_to_label, sub_label_to_node)
 
-    # nx.write_gpickle(temp_for_save_sub, "sub_erdos_renyi_graph_" + "p=0.5" + "_{}_classes".format(5))
+    nx.write_gpickle(temp_for_save_sub, "sub_erdos_renyi_graph_" + "p=0.1" + "_{}_classes".format(5))
 
     small, color_map,color_to_node = generate_graph(5,0.5,50)
     nx.set_node_attributes(small, color_map, "color")

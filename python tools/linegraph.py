@@ -224,31 +224,46 @@ def run_without_test(size_g,size_s,k,p_g,p_s):
 
     return output1
 
+def read_json_file(filename):
+    with open(filename) as f:
+        js_graph = json.load(f)
+    g = nx.node_link_graph(js_graph)
+    g = nx.convert_node_labels_to_integers(g)
+    return g
+
 if __name__ == "__main__":
-    graph, node_to_label_g, label_to_node_g = nx.read_gpickle("erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
-    sub_g, node_to_label_s , label_to_node_s = nx.read_gpickle("sub_erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
-
-    #plot_graph(sub_g, node_to_label_s, "Subgraph", "subgraph.png")
-    G_edge_ranks = rank_edges(graph, node_to_label_g)
-    hamiltonian = cheapest_hamiltonian(sub_g, node_to_label_s, G_edge_ranks)
-    print(hamiltonian)
-    print(len(hamiltonian),len(sub_g),len(graph))
-
-    nx.set_node_attributes(graph, node_to_label_g, "color")
-    nx.set_node_attributes(sub_g, node_to_label_s, "color")
-
+    graph = read_json_file('graph0.json')
+    sub_g = read_json_file('graph2.json')
     start2 = time.time()
     GM = isomorphism.GraphMatcher(graph, sub_g,node_match=colors_match)
     output2 = GM.subgraph_monomorphisms_iter()
-    for p in output2:
-        print(p)
+    output2 = list(output2)
     time2 = time.time() - start2
-    print(time2,len(output2))
+    print(output2,len(output2),time2)
+    # graph, node_to_label_g, label_to_node_g = nx.read_gpickle("erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
+    # sub_g, node_to_label_s , label_to_node_s = nx.read_gpickle("sub_erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
 
-    start1 = time.time()
-    search_all_subgraphs_orderd(graph,sub_g,hamiltonian)
-    time1 = time.time() - start1
-    print("TIME",time1)
+    # #plot_graph(sub_g, node_to_label_s, "Subgraph", "subgraph.png")
+    # G_edge_ranks = rank_edges(graph, node_to_label_g)
+    # hamiltonian = cheapest_hamiltonian(sub_g, node_to_label_s, G_edge_ranks)
+    # print(hamiltonian)
+    # print(len(hamiltonian),len(sub_g),len(graph))
+
+    # nx.set_node_attributes(graph, node_to_label_g, "color")
+    # nx.set_node_attributes(sub_g, node_to_label_s, "color")
+
+    # start2 = time.time()
+    # GM = isomorphism.GraphMatcher(graph, sub_g,node_match=colors_match)
+    # output2 = GM.subgraph_monomorphisms_iter()
+    # for p in output2:
+    #     print(p)
+    # time2 = time.time() - start2
+    # print(time2,len(output2))
+
+    # start1 = time.time()
+    # search_all_subgraphs_orderd(graph,sub_g,hamiltonian)
+    # time1 = time.time() - start1
+    # print("TIME",time1)
     
 
 # sum1 = 0

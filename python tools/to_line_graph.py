@@ -42,18 +42,18 @@ def cheapest_hamiltonian(sub_g, node_to_label_s, edge_ranks):
 import json
 
 if __name__ == "__main__":
-    graph, node_to_label_g, label_to_node_g = nx.read_gpickle("erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
-    sub_g, node_to_label_s , label_to_node_s = nx.read_gpickle("sub_erdos_renyi_graph_p=0.5" + "_{}_classes".format(5))
+    graph, node_to_label_g, label_to_node_g = nx.read_json("erdos_renyi_graph_p=0.1" + "_{}_classes".format(5))
+    sub_g, node_to_label_s , label_to_node_s = nx.read_gpickle("sub_erdos_renyi_graph_p=0.1" + "_{}_classes".format(5))
 
     #plot_graph(sub_g, node_to_label_s, "Subgraph", "subgraph.png")
     G_edge_ranks = rank_edges(graph, node_to_label_g)
     hamiltonian = cheapest_hamiltonian(sub_g, node_to_label_s, G_edge_ranks)
 
-    # nx.set_node_attributes(graph, node_to_label_g, "color")
-    # nx.set_node_attributes(sub_g, node_to_label_s, "color")
-    # with open('graph1.json', 'w') as f:
-    #     json.dump(nx.node_link_data(graph), f)
-    # with open('graph2.json', 'w') as f:
-    #     json.dump(nx.node_link_data(sub_g), f)
+    nx.set_node_attributes(graph, node_to_label_g, "color")
+    nx.set_node_attributes(sub_g, node_to_label_s, "color")
+    with open('graph1.json', 'w') as f:
+        json.dump(nx.node_link_data(graph), f)
+    with open('graph2.json', 'w') as f:
+        json.dump(nx.node_link_data(sub_g), f)
     with open('ordering.json', 'w') as f:
         json.dump({"ordering" : hamiltonian}, f)
