@@ -1,6 +1,6 @@
 import networkx as nx
 import json
-
+import time
 
 def rank_edges(graph):
     # Count all optional edges in G to find rarity.
@@ -46,8 +46,13 @@ def read_json_file(filename):
 
 def full_pipeline(f_name):
     G = read_json_file(f_name)
+    start1 = time.time()
     G_edge_ranks = rank_edges(G)
     hamiltonian = cheapest_hamiltonian(G, G_edge_ranks)
+    end1 = time.time() - start1
+    print(end1)
     with open('ordering_'+f_name, 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
-full_pipeline('graph2.json')
+
+
+full_pipeline('graph1.json')
