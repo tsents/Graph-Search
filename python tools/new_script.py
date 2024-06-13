@@ -1,6 +1,7 @@
 import networkx as nx
 import json
 import time
+import linegraph
 
 def rank_edges(graph):
     # Count all optional edges in G to find rarity.
@@ -44,15 +45,26 @@ def read_json_file(filename):
     g = nx.convert_node_labels_to_integers(g)
     return g
 
-def full_pipeline(f_name):
-    G = read_json_file(f_name)
+def full_pipeline(graph_name,subgraph_name):
+    G = read_json_file(graph_name)
+    S = read_json_file(subgraph_name)
     start1 = time.time()
     G_edge_ranks = rank_edges(G)
-    hamiltonian = cheapest_hamiltonian(G, G_edge_ranks)
+    hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
     end1 = time.time() - start1
     print(end1)
-    with open('ordering_'+f_name, 'w') as f:
+
+    if hamiltonian[0] == -1:
+        return False
+    
+    with open('ordering_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
 
+    start2 = time.time()
+    output = linegraph.search_all_subgraphs_orderd(G,S,hamiltonian)
+    with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
+        json.dump(output, f)
+    time2 = time.time() - start2
+    print("TIME",time2)
 
-full_pipeline('graph1.json')
+full_pipeline('graph6.json','graph2.json')

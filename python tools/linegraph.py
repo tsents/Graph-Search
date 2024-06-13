@@ -58,7 +58,6 @@ def recursion_search_ordered(G,S,node_g,node_s,restrictions,path,ordering):
     if node_g in path:
         return []
     if len(path) >= len(ordering) - 1: #len(S.nodes()) was bugged? not now?
-        return []
         #we want to lower memory so for now we wont store the answers
         copy = path.copy()
         copy[node_g] = node_s
