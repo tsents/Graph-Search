@@ -2,3 +2,4 @@ dat/
 go_speed
 go_speed.prof
 *.json
+python tools/__pycache__

@@ -28,6 +28,62 @@ def format_as_array(graph_dict):
         output[val] = key
     return output
 
+#with no multiple finds
+
+def search_all_no_repetition(Graph,Subgraph,ordering,common_colors):
+    all_subgraphs = []
+
+    def wrapper(node):
+        if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
+            output = recursion_search_ordered(Graph,Subgraph,node,ordering[0],{},{},ordering) #we can run this part in parallel, to massivly boost speed
+            all_subgraphs.extend(output)
+    # pool = Pool(64)
+
+    # for node in Graph.nodes():
+    #     pool.apply_async(wrapper, (node,))    
+
+    # pool.close()
+    # pool.join()
+    for node in Graph.nodes():
+        wrapper(node)
+    return all_subgraphs
+
+#modifies G
+def recursion_search_no_repetition(G,S,node_g,node_s,restrictions,path,ordering,common_colors):
+    if node_g in path:
+        return []
+    if len(path) >= len(ordering) - 1: #len(S.nodes()) was bugged? not now?
+        #we want to lower memory so for now we wont store the answers
+        copy = path.copy()
+        copy[node_g] = node_s
+        G.remove_nodes_from(copy.keys())
+        return [copy]
+    output = []
+    # print("before update",restrictions)
+    inverse_restrictions, empty_set = restriction_update(G,S,node_g,node_s,restrictions)
+    # print("after update",restrictions,inverse_restrictions)
+    path[node_g] = node_s
+
+    if not empty_set:
+        for u in restrictions[ordering[len(path)]]: #the next node in the ordering! in the extention of the algoritms this is a part we will change
+            recursion_output = recursion_search_ordered(G,S,u,ordering[len(path)],restrictions,path,ordering)
+            output.extend(recursion_output)
+            if len(recursion_output) > 0:
+                return output
+
+    #do the union of the changes, i.e reverse the new imposed retrictions
+    # print("before inverse",restrictions,inverse_restrictions)
+    for u in inverse_restrictions:
+        if len(inverse_restrictions[u]) > 0 and inverse_restrictions[u][0] == "G":
+            restrictions.pop(u)
+        else:
+            restrictions[u].extend(inverse_restrictions[u]) 
+            #Problem!! this is not constant, but O(n), should move to custom linked lists!
+            #In profiling this part wasnt even visible, very minor
+    # print("after inverse",restrictions,inverse_restrictions)
+    path.pop(node_g)
+    return output
+
 #for any ordering
 def search_all_subgraphs_orderd(Graph,Subgraph,ordering):
     all_subgraphs = []
@@ -85,8 +141,6 @@ def recursion_search_ordered(G,S,node_g,node_s,restrictions,path,ordering):
     path.pop(node_g)
     return output
 
-
-#Search Algo
 def search_all_subgraphs(Graph,Subgraph):
     all_subgraphs = []
     for node in Graph.nodes():

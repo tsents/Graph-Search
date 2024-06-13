@@ -61,10 +61,10 @@ def full_pipeline(graph_name,subgraph_name):
         json.dump({"ordering":hamiltonian}, f)
 
     start2 = time.time()
-    output = linegraph.search_all_subgraphs_orderd(G,S,hamiltonian)
+    output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
     with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
         json.dump(output, f)
     time2 = time.time() - start2
     print("TIME",time2)
 
-full_pipeline('graph6.json','graph2.json')
+full_pipeline('graph4.json','graph6.json')
