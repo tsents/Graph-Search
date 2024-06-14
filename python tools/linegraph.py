@@ -34,9 +34,10 @@ def search_all_no_repetition(Graph,Subgraph,ordering,common_colors):
     all_subgraphs = []
 
     def wrapper(node):
-        if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
-            output = recursion_search_no_repetition(Graph,Subgraph,node,ordering[0],{},{},ordering,common_colors) #we can run this part in parallel, to massivly boost speed
-            all_subgraphs.extend(output)
+        if node in Graph:     
+            if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
+                output = recursion_search_no_repetition(Graph,Subgraph,node,ordering[0],{},{},ordering,common_colors) #we can run this part in parallel, to massivly boost speed
+                all_subgraphs.extend(output)
     # pool = Pool(64)
 
     # for node in Graph.nodes():
@@ -44,7 +45,8 @@ def search_all_no_repetition(Graph,Subgraph,ordering,common_colors):
 
     # pool.close()
     # pool.join()
-    for node in Graph.nodes():
+    cpy = list(Graph.nodes().keys())
+    for node in cpy:
         wrapper(node)
     return all_subgraphs
 
