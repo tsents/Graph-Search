@@ -35,7 +35,7 @@ def search_all_no_repetition(Graph,Subgraph,ordering,common_colors):
 
     def wrapper(node):
         if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
-            output = recursion_search_no_repetition(Graph,Subgraph,node,ordering[0],{},{},ordering) #we can run this part in parallel, to massivly boost speed
+            output = recursion_search_no_repetition(Graph,Subgraph,node,ordering[0],{},{},ordering,common_colors) #we can run this part in parallel, to massivly boost speed
             all_subgraphs.extend(output)
     # pool = Pool(64)
 
@@ -57,6 +57,7 @@ def recursion_search_no_repetition(G,S,node_g,node_s,restrictions,path,ordering,
         copy = path.copy()
         copy[node_g] = node_s
         G.remove_nodes_from(copy.keys())
+        print("found",len(G))
         return [copy]
     output = []
     # print("before update",restrictions)
@@ -66,7 +67,7 @@ def recursion_search_no_repetition(G,S,node_g,node_s,restrictions,path,ordering,
 
     if not empty_set:
         for u in restrictions[ordering[len(path)]]: #the next node in the ordering! in the extention of the algoritms this is a part we will change
-            recursion_output = recursion_search_no_repetition(G,S,u,ordering[len(path)],restrictions,path,ordering)
+            recursion_output = recursion_search_no_repetition(G,S,u,ordering[len(path)],restrictions,path,ordering,common_colors)
             output.extend(recursion_output)
             if len(recursion_output) > 0:
                 return output

@@ -45,12 +45,18 @@ def read_json_file(filename):
     g = nx.convert_node_labels_to_integers(g)
     return g
 
-def full_pipeline(graph_name,subgraph_name):
+def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     G = read_json_file(graph_name)
     S = read_json_file(subgraph_name)
     start1 = time.time()
-    G_edge_ranks = rank_edges(G)
-    hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
+    hamiltonian = 0
+    if len(ordering_file) == 0:
+        G_edge_ranks = rank_edges(G)
+        hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
+    else:
+        with open(ordering_file) as f:
+            d = json.load(f)
+        hamiltonian = d['ordering']
     end1 = time.time() - start1
     print(end1)
 
@@ -67,4 +73,5 @@ def full_pipeline(graph_name,subgraph_name):
     time2 = time.time() - start2
     print("TIME",time2)
 
-full_pipeline('graph4.json','graph6.json')
+full_pipeline('graph4.json','graph6.json','ordering_4_6.json')
+
