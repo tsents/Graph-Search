@@ -38,6 +38,46 @@ def cheapest_hamiltonian(sub_g,edge_ranks):
     unique_path = [x for x in path if not (x in seen or seen.add(x))]
     return unique_path
 
+
+
+def prim_hamiltonian(sub_g,edge_ranks):
+    min_rank = max(edge_ranks.values())
+    start = -1
+    # Add ranks by rarity in G to edges in sub graph.
+    edge_list = list(sub_g.edges)
+    for edge in edge_list:
+        labeled_e = (sub_g.nodes[edge[0]]['color'], sub_g.nodes[edge[1]]['color'])
+        if labeled_e in edge_ranks:
+            rank = edge_ranks[labeled_e]
+        elif (labeled_e[1], labeled_e[0]) in edge_ranks:
+            rank = edge_ranks[(labeled_e[1], labeled_e[0])]
+        else:
+            return -1, edge, labeled_e
+        
+        if rank < min_rank:
+            start = edge[0]
+            min_rank = rank
+        sub_g[edge[0]][edge[1]]['weight'] = rank
+
+
+    chosen = [start]
+    valued_neighborhood = {}
+    for i in range(len(sub_g) - 1):
+        for neighbor in sub_g.neighbors(chosen[i]):
+            if not neighbor in chosen:
+                if not neighbor in valued_neighborhood:
+                    valued_neighborhood[neighbor] = 0
+                labeled_e = (sub_g.nodes[chosen[i]]['color'], sub_g.nodes[neighbor]['color'])
+                if labeled_e in edge_ranks:
+                    rank = edge_ranks[labeled_e]
+                elif (labeled_e[1], labeled_e[0]) in edge_ranks:
+                    rank = edge_ranks[(labeled_e[1], labeled_e[0])]
+                valued_neighborhood[neighbor] += 1/rank
+        chosen.append(max(valued_neighborhood, key=valued_neighborhood.get))
+        valued_neighborhood.pop(chosen[i+1])
+    print(chosen)
+    return chosen
+
 def read_json_file(filename):
     with open(filename) as f:
         js_graph = json.load(f)
@@ -53,6 +93,7 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     if len(ordering_file) == 0:
         G_edge_ranks = rank_edges(G)
         hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
+        prim_hamiltonian(S,G_edge_ranks)
     else:
         with open(ordering_file) as f:
             d = json.load(f)
@@ -66,12 +107,12 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     with open('ordering_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
 
-    start2 = time.time()
-    output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
-    with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
-        json.dump(output, f)
-    time2 = time.time() - start2
-    print("TIME",time2)
+    # start2 = time.time()
+    # output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
+    # with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
+    #     json.dump(output, f)
+    # time2 = time.time() - start2
+    # print("TIME",time2)
 
-full_pipeline('graph4.json','graph6.json','ordering_4_6.json')
+full_pipeline('graph0.json','graph5.json')
 
