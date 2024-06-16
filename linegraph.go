@@ -38,17 +38,16 @@ type att struct {
 func main() {
 	fmt.Println("hello world")
 
-	for j:= 0; j < 8; j++{
-		S := ReadGraph(fmt.Sprintf("graph%v.json",j))
-		ordering := ReadOrdering(fmt.Sprintf("ordering_graph%v.json",j))
-		for i := 0; i < 8; i++{
-			G := ReadGraph(fmt.Sprintf("graph%v.json",i))
-			start := time.Now()
-			FindAllSubgraphPathgraph(G,S,ordering)
-			algo_time := time.Since(start)
-			fmt.Println("done",i,j, algo_time.Seconds())
-		}
-	}
+	i := os.Args[1]
+    j := os.Args[2]
+	
+	G := ReadGraph(fmt.Sprintf("graph%v.json", i))
+	S := ReadGraph(fmt.Sprintf("graph%v.json", j))
+	ordering := ReadOrdering(fmt.Sprintf("ordering_%v_%v.json", i,j))
+	start := time.Now()
+	FindAllSubgraphPathgraph(G, S, ordering)
+	algo_time := time.Since(start)
+	fmt.Println("done", i, j, algo_time.Seconds())
 	// prof_file, err := os.Create("go_speed.prof")
 	// if err != nil {
 	// 	panic(err)
