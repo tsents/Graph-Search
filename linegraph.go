@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"runtime/pprof"
+	"os/signal"
 )
 
 type void struct{}
@@ -38,22 +40,41 @@ type att struct {
 func main() {
 	fmt.Println("hello world")
 
+
+	f, err := os.Create("cpu.pprof")
+	if err != nil {
+		panic(err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	go func() {
+		for sig := range c {
+			// sig is a ^C (interrupt), handle it
+			if sig == os.Interrupt {
+				pprof.StopCPUProfile()
+				os.Exit(0)
+			}
+		}
+	}()
+
+	// runtime.GOMAXPROCS(64)
+
 	i := os.Args[1]
     j := os.Args[2]
 	
 	G := ReadGraph(fmt.Sprintf("graph%v.json", i))
 	S := ReadGraph(fmt.Sprintf("graph%v.json", j))
+	fmt.Println(len(G),len(S))
 	ordering := ReadOrdering(fmt.Sprintf("ordering_%v_%v.json", i,j))
 	start := time.Now()
 	FindAllSubgraphPathgraph(G, S, ordering)
 	algo_time := time.Since(start)
 	fmt.Println("done", i, j, algo_time.Seconds())
-	// prof_file, err := os.Create("go_speed.prof")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// pprof.StartCPUProfile(prof_file)
-	// defer pprof.StopCPUProfile()
 
 	// for t := 0; t < 10; t++ {
 	// 	G := Gnp(1e3, 0.5)
@@ -81,16 +102,22 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32) ui
 		panic(err)
 	}
 	defer f.Close()
+	start_time := time.Now()
 	for u := uint32(0); u < uint32(len(Graph)); u++ {
 		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
 			wg.Add(1)
-			go func(u uint32) {
+			func(u uint32) {
 				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint32]*list, len(Subgraph)),
 					make(map[uint32]uint32), f, ordering)
+
+				fmt.Println("done run",u,time.Since(start_time))
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
 		}
+		// if u%128 == 0 {
+		// 	wg.Wait()
+		// }
 	}
 	wg.Wait()
 	return ops.Load()

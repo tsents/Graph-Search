@@ -59,7 +59,6 @@ def recursion_search_no_repetition(G,S,node_g,node_s,restrictions,path,ordering,
         copy = path.copy()
         copy[node_g] = node_s
         G.remove_nodes_from(copy.keys())
-        print("found",len(G))
         return [copy]
     output = []
     # print("before update",restrictions)
