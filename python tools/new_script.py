@@ -54,11 +54,10 @@ def prim_hamiltonian(sub_g,edge_ranks):
         else:
             return -1, edge, labeled_e
         
-        if rank < min_rank:
+        if rank <= min_rank:
             start = edge[0]
             min_rank = rank
         sub_g[edge[0]][edge[1]]['weight'] = rank
-
 
     chosen = [start]
     valued_neighborhood = {}
@@ -92,8 +91,8 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     hamiltonian = 0
     if len(ordering_file) == 0:
         G_edge_ranks = rank_edges(G)
-        hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
-        prim_hamiltonian(S,G_edge_ranks)
+        # hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
+        hamiltonian = prim_hamiltonian(S,G_edge_ranks)
     else:
         with open(ordering_file) as f:
             d = json.load(f)
@@ -107,12 +106,13 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     with open('ordering_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
 
-    # start2 = time.time()
-    # output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
-    # with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
-    #     json.dump(output, f)
-    # time2 = time.time() - start2
-    # print("TIME",time2)
+    start2 = time.time()
+    output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
+    with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
+        json.dump(output, f)
+    time2 = time.time() - start2
+    print("TIME",time2)
 
-full_pipeline('graph0.json','graph5.json')
+for i in range (8):
+    full_pipeline('graph' + str(i) + '.json','graph2.json')
 
