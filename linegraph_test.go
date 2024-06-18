@@ -128,7 +128,7 @@ func TestSelfFind(t *testing.T){
 
 func TestLists(t *testing.T) {
 	for j := 0; j < 1e3; j++{
-		l := list{nil,nil}
+		l := list{nil,nil,0}
 		for i := 0; i < 1e4; i++ {
 			el := element{rand.Uint32N(1000000),nil}
 			ListAppend(&l,&el)
@@ -148,7 +148,7 @@ func TestLists(t *testing.T) {
 
 func TestListsSplit(t *testing.T){
 	for j := 0; j < 1e2; j++{
-		l := list{nil,nil}
+		l := list{nil,nil,0}
 		for i := 0; i < 1e2; i++ {
 			el := element{rand.Uint32N(1000000),nil}
 			ListAppend(&l,&el)
@@ -208,12 +208,12 @@ func TestListsSplit(t *testing.T){
 
 func TestListsJoin(t *testing.T) {
 	for j := 0; j < 1e3; j++{
-		l1 := list{nil,nil}
+		l1 := list{nil,nil,0}
 		for i := 0; i < 1e3; i++ {
 			el := element{rand.Uint32N(1000000),nil}
 			ListAppend(&l1,&el)
 		}
-		l2 := list{nil,nil}
+		l2 := list{nil,nil,0}
 		for i := 0; i < 1e3; i++ {
 			el := element{rand.Uint32N(1000000),nil}
 			ListAppend(&l2,&el)

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"runtime/pprof"
-	"os/signal"
+	// "runtime/pprof"
+	// "os/signal"
 )
 
 type void struct{}
@@ -25,6 +25,7 @@ type element struct {
 type list struct {
 	start *element
 	end   *element
+	length uint32
 }
 
 type vertex struct {
@@ -41,26 +42,26 @@ func main() {
 	fmt.Println("hello world")
 
 
-	f, err := os.Create("cpu.pprof")
-	if err != nil {
-		panic(err)
-	}
-	if err := pprof.StartCPUProfile(f); err != nil {
-		panic(err)
-	}
-	defer pprof.StopCPUProfile()
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	// f, err := os.Create("cpu.pprof")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	panic(err)
+	// }
+	// defer pprof.StopCPUProfile()
+	// c := make(chan os.Signal, 1)
+	// signal.Notify(c, os.Interrupt)
 
-	go func() {
-		for sig := range c {
-			// sig is a ^C (interrupt), handle it
-			if sig == os.Interrupt {
-				pprof.StopCPUProfile()
-				os.Exit(0)
-			}
-		}
-	}()
+	// go func() {
+	// 	for sig := range c {
+	// 		// sig is a ^C (interrupt), handle it
+	// 		if sig == os.Interrupt {
+	// 			pprof.StopCPUProfile()
+	// 			os.Exit(0)
+	// 		}
+	// 	}
+	// }()
 
 	// runtime.GOMAXPROCS(64)
 
@@ -106,7 +107,7 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32) ui
 	for u := uint32(0); u < uint32(len(Graph)); u++ {
 		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
 			wg.Add(1)
-			func(u uint32) {
+			go func(u uint32) {
 				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint32]*list, len(Subgraph)),
 					make(map[uint32]uint32), f, ordering)
 
@@ -115,9 +116,9 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32) ui
 				wg.Done()
 			}(u)
 		}
-		// if u%128 == 0 {
-		// 	wg.Wait()
-		// }
+		if u%512 == 0 {
+			wg.Wait()
+		}
 	}
 	wg.Wait()
 	return ops.Load()
@@ -140,12 +141,20 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	path[v_g] = v_s
 	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions)
 	if !empty {
-		targets := []uint32{}
-		for u_instance := restrictions[ordering[len(path)]].start; u_instance != nil; u_instance = u_instance.next {
-			targets = append(targets, u_instance.value)
-		}
-		for i := 0; i < len(targets); i++ {
-			ret += RecursionSearch(Graph, Subgraph, targets[i], ordering[len(path)], restrictions, path, file, ordering)
+		// if true{
+		if len(path) < 200 {
+			targets := []uint32{}
+			new_v_s := uint32(0)
+			new_v_s = ordering[len(path)]
+			for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
+				targets = append(targets, u_instance.value)
+			}	
+			fmt.Println("tagets size",len(targets),"death",len(path))
+			for i := 0; i < len(targets); i++ {
+				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+			}
+		} else {
+			ret += MinRestrictionsCall(Graph,Subgraph,restrictions,path,ordering,file)
 		}
 	}
 	for u := range inverse_restrictions {
@@ -161,6 +170,34 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	return ret
 }
 
+func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*list,
+						path map[uint32]uint32,ordering []uint32,file *os.File) int{
+	ret := 0
+	best_length := ^uint32(0)
+	targets := []uint32{}
+	new_v_s := uint32(0)
+	for t := range restrictions{
+		rev_path := reverseMap(path)
+		if _, ok := rev_path[uint32(t)]; !ok {
+			if restrictions[t] == nil {
+				return 0
+			}
+			if restrictions[uint32(t)].length < best_length{
+				new_v_s = uint32(t)
+				best_length = restrictions[uint32(t)].length
+			}
+		}
+	}
+	for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
+		targets = append(targets, u_instance.value)
+	}
+	fmt.Println("tagets size",len(targets),"death",len(path))
+	for i := 0; i < len(targets); i++ {
+		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+	}
+	return ret
+}
+
 func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions map[uint32]*list) (map[uint32]*list, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint32]*list, len(S))
@@ -168,7 +205,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions m
 		if restrictions[u] == nil {
 			restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
 			el := element{^uint32(0), nil}
-			inverse_restrictions[u] = &list{&el, &el}
+			inverse_restrictions[u] = &list{&el, &el,0}
 		} else {
 			var dis discriminator = func(u_instance uint32) bool {
 				_, ok := G[v_g].neighborhood[u_instance]
@@ -184,7 +221,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions m
 }
 
 func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint16) *list {
-	output := list{nil, nil}
+	output := list{nil, nil,0}
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
 			el := element{v, nil}
@@ -195,8 +232,8 @@ func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint16) *list {
 }
 
 func SplitList(l *list, which discriminator) (*list, *list) {
-	l1 := &list{nil, nil}
-	l2 := &list{nil, nil}
+	l1 := &list{nil, nil,0}
+	l2 := &list{nil, nil,0}
 	var next *element
 	for el := l.start; el != nil; el = next {
 		next = el.next
@@ -216,6 +253,7 @@ func JoinLists(l1 *list, l2 *list) *list {
 	if l1 == nil {
 		return l2
 	}
+	l1.length += l2.length
 	if l1.start == nil {
 		return l2
 	}
@@ -229,6 +267,7 @@ func JoinLists(l1 *list, l2 *list) *list {
 }
 
 func ListAppend(l *list, el *element) {
+	l.length += 1
 	el.next = nil
 	if l.start == nil {
 		l.start = el
@@ -265,4 +304,19 @@ func Gnp(n uint32, p float32) graph {
 		}
 	}
 	return Graph
+}
+
+func PrintList(l *list){
+	for u_instance := l.start; u_instance != nil; u_instance = u_instance.next {
+		fmt.Print(u_instance.value,',')
+	}
+	fmt.Println()
+}
+
+func reverseMap(m map[uint32]uint32) map[uint32]uint32 {
+    n := make(map[uint32]uint32, len(m))
+    for k, v := range m {
+        n[v] = k
+    }
+    return n
 }

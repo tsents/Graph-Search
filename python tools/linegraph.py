@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from networkx.algorithms import isomorphism
 import time
-from to_line_graph import *
-
+import json
 from multiprocessing.pool import ThreadPool as Pool
 
 

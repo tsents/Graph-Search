@@ -74,6 +74,8 @@ def prim_hamiltonian(sub_g,edge_ranks):
                 valued_neighborhood[neighbor] += 1/rank
         chosen.append(max(valued_neighborhood, key=valued_neighborhood.get))
         valued_neighborhood.pop(chosen[i+1])
+        if len(chosen) > 5000:
+            return chosen
     print(chosen)
     return chosen
 
@@ -93,6 +95,24 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
         G_edge_ranks = rank_edges(G)
         # hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
         hamiltonian = prim_hamiltonian(S,G_edge_ranks)
+        # if hamiltonian[0] == -1:
+        #     return
+        # for i in range(len(hamiltonian) - 1):
+        #     labeled_e = (S.nodes[hamiltonian[i]]['color'], S.nodes[hamiltonian[i+1]]['color'])
+        #     for edge in G.edges():
+        #         labeled_e_s = (G.nodes[edge[0]]['color'], G.nodes[edge[1]]['color'])
+        #         if labeled_e_s[0] == labeled_e[0] and labeled_e_s[1] == labeled_e[1]:
+        #             num = 0
+        #             for node in G.neighbors(edge[0]):
+        #                 if G.nodes[node]['color'] == labeled_e[1]:
+        #                     num+=1
+        #             print(num)
+        #         elif labeled_e_s[1] == labeled_e[0] and labeled_e_s[0] == labeled_e_s[1]:
+        #             num = 0
+        #             for node in G.neighbors(edge[0]):
+        #                 if G.nodes[node]['color'] == labeled_e[0]:
+        #                     num+=1
+        #             print(num)
     else:
         with open(ordering_file) as f:
             d = json.load(f)
@@ -106,13 +126,14 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     with open('ordering_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
 
-    start2 = time.time()
-    output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
-    with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
-        json.dump(output, f)
-    time2 = time.time() - start2
-    print("TIME",time2)
+    # start2 = time.time()
+    # output = linegraph.search_all_no_repetition(G,S,hamiltonian,[])
+    # with open('output_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
+    #     json.dump(output, f)
+    # time2 = time.time() - start2
+    # print("TIME",time2)
 
-for i in range (8):
-    full_pipeline('graph' + str(i) + '.json','graph2.json')
+# for i in range (8):
+#     full_pipeline('graph' + str(i) + '.json','graph4.json')
+full_pipeline('graph0.json','graph4.json')
 
