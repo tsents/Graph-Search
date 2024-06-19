@@ -139,10 +139,13 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	}
 	ret := 0
 	path[v_g] = v_s
-	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions)
+	self_list := restrictions[v_s]
+	delete(restrictions,v_s)
+	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions,path)
+	inverse_restrictions[v_s] = self_list
 	if !empty {
 		// if true{
-		if len(path) < 200 {
+		if len(path) < 100 {
 			targets := []uint32{}
 			new_v_s := uint32(0)
 			new_v_s = ordering[len(path)]
@@ -177,14 +180,16 @@ func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*lis
 	targets := []uint32{}
 	new_v_s := uint32(0)
 	for t := range restrictions{
-		rev_path := reverseMap(path)
-		if _, ok := rev_path[uint32(t)]; !ok {
-			if restrictions[t] == nil {
-				return 0
-			}
-			if restrictions[uint32(t)].length < best_length{
-				new_v_s = uint32(t)
-				best_length = restrictions[uint32(t)].length
+		if restrictions[t] == nil {
+			return 0
+		}
+		if restrictions[uint32(t)].length < best_length{
+			new_v_s = uint32(t)
+			best_length = restrictions[uint32(t)].length
+			if best_length == 1{
+				fmt.Println("tagets size",best_length ,"death",len(path))
+				ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
+				return ret
 			}
 		}
 	}
@@ -198,22 +203,26 @@ func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*lis
 	return ret
 }
 
-func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions map[uint32]*list) (map[uint32]*list, bool) {
+func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
+	 					restrictions map[uint32]*list,path map[uint32]uint32) (map[uint32]*list, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint32]*list, len(S))
+	rev_path := reverseMap(path)
 	for u := range S[v_s].neighborhood {
-		if restrictions[u] == nil {
-			restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
-			el := element{^uint32(0), nil}
-			inverse_restrictions[u] = &list{&el, &el,0}
-		} else {
-			var dis discriminator = func(u_instance uint32) bool {
-				_, ok := G[v_g].neighborhood[u_instance]
-				return ok
-			}
-			restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u], dis)
-			if restrictions[u].start == nil {
-				empty = true
+		if _, ok := rev_path[u]; !ok{
+			if restrictions[u] == nil {
+				restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
+				el := element{^uint32(0), nil}
+				inverse_restrictions[u] = &list{&el, &el,0}
+			} else {
+				var dis discriminator = func(u_instance uint32) bool {
+					_, ok := G[v_g].neighborhood[u_instance]
+					return ok
+				}
+				restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u], dis)
+				if restrictions[u].start == nil {
+					empty = true
+				}
 			}
 		}
 	}
