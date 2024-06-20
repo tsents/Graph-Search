@@ -152,7 +152,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 			for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
 				targets = append(targets, u_instance.value)
 			}	
-			fmt.Println("tagets size",len(targets),"death",len(path))
+			fmt.Println("targets size",len(targets),"death",len(path))
 			for i := 0; i < len(targets); i++ {
 				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
 			}
@@ -180,15 +180,12 @@ func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*lis
 	targets := []uint32{}
 	new_v_s := uint32(0)
 	for t := range restrictions{
-		if restrictions[uint32(t)].length == 0 {
-			fmt.Println("empty")
-		}
 		if restrictions[uint32(t)].length < best_length{
 			new_v_s = uint32(t)
 			best_length = restrictions[uint32(t)].length
 		}
-		if best_length == 1{
-			fmt.Println("tagets size",best_length ,"death",len(path))
+		if best_length == 1 {
+			fmt.Println("targets size",best_length,"death",len(path),"vertex",new_v_s)
 			ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
 			return ret
 		}
@@ -196,7 +193,7 @@ func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*lis
 	for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
 		targets = append(targets, u_instance.value)
 	}
-	fmt.Println("tagets size",len(targets),"death",len(path))
+	fmt.Println("targets size",len(targets),"death",len(path),"vertex",new_v_s)
 	for i := 0; i < len(targets); i++ {
 		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
 	}
