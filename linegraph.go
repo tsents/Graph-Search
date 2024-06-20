@@ -145,7 +145,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		// if true{
-		if len(path) < 100 {
+		if len(path) < 15 {
 			targets := []uint32{}
 			new_v_s := uint32(0)
 			new_v_s = ordering[len(path)]
@@ -163,7 +163,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	for u := range inverse_restrictions {
 		if inverse_restrictions[u] != nil {
 			if inverse_restrictions[u].start != nil && inverse_restrictions[u].start.value == ^uint32(0) {
-				restrictions[u] = nil
+				delete(restrictions,u)
 			} else {
 				restrictions[u] = JoinLists(restrictions[u], inverse_restrictions[u])
 			}
@@ -180,17 +180,17 @@ func MinRestrictionsCall(Graph graph,Subgraph graph,restrictions map[uint32]*lis
 	targets := []uint32{}
 	new_v_s := uint32(0)
 	for t := range restrictions{
-		if restrictions[t] == nil {
-			return 0
+		if restrictions[uint32(t)].length == 0 {
+			fmt.Println("empty")
 		}
 		if restrictions[uint32(t)].length < best_length{
 			new_v_s = uint32(t)
 			best_length = restrictions[uint32(t)].length
-			if best_length == 1{
-				fmt.Println("tagets size",best_length ,"death",len(path))
-				ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
-				return ret
-			}
+		}
+		if best_length == 1{
+			fmt.Println("tagets size",best_length ,"death",len(path))
+			ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
+			return ret
 		}
 	}
 	for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
@@ -210,7 +210,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
 	rev_path := reverseMap(path)
 	for u := range S[v_s].neighborhood {
 		if _, ok := rev_path[u]; !ok{
-			if restrictions[u] == nil {
+			if _, ok := restrictions[u]; !ok {
 				restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
 				el := element{^uint32(0), nil}
 				inverse_restrictions[u] = &list{&el, &el,0}
@@ -220,9 +220,9 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
 					return ok
 				}
 				restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u], dis)
-				if restrictions[u].start == nil {
-					empty = true
-				}
+			}
+			if restrictions[u].length == 0 {
+				empty = true
 			}
 		}
 	}
@@ -317,8 +317,9 @@ func Gnp(n uint32, p float32) graph {
 
 func PrintList(l *list){
 	for u_instance := l.start; u_instance != nil; u_instance = u_instance.next {
-		fmt.Print(u_instance.value,',')
+		fmt.Print(u_instance.value,u_instance.next,u_instance,',')
 	}
+	fmt.Print("\tlength",l.length)
 	fmt.Println()
 }
 
