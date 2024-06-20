@@ -73,9 +73,9 @@ func main() {
 	fmt.Println(len(G),len(S))
 	ordering := ReadOrdering(fmt.Sprintf("ordering_%v_%v.json", i,j))
 	start := time.Now()
-	FindAllSubgraphPathgraph(G, S, ordering)
+	matches := FindAllSubgraphPathgraph(G, S, ordering)
 	algo_time := time.Since(start)
-	fmt.Println("done", i, j, algo_time.Seconds())
+	fmt.Println("done", matches, algo_time.Seconds())
 
 	// for t := 0; t < 10; t++ {
 	// 	G := Gnp(1e3, 0.5)
@@ -145,7 +145,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		// if true{
-		if len(path) < 15 {
+		if len(path) < 2 {
 			targets := []uint32{}
 			new_v_s := uint32(0)
 			new_v_s = ordering[len(path)]
