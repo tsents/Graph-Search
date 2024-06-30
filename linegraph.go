@@ -186,8 +186,9 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 		}
 	}
 	//skip call!
-	if len(restrictions) > 1 {
-		IncompleteRecusionSearch(Graph,Subgraph,^uint32(0),new_v_s,restrictions,path,chosen,threshold,file)
+	skip_deg := uint32(len(Subgraph[new_v_s].neighborhood))
+	if len(restrictions) > 1 && skip_deg <= threshold{
+		IncompleteRecusionSearch(Graph,Subgraph,^uint32(0),new_v_s,restrictions,path,chosen,threshold - skip_deg,file)
 	}
 
 
