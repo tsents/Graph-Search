@@ -74,9 +74,8 @@ def prim_hamiltonian(sub_g,edge_ranks):
                 valued_neighborhood[neighbor] += 1/rank
         chosen.append(max(valued_neighborhood, key=valued_neighborhood.get))
         valued_neighborhood.pop(chosen[i+1])
-        if len(chosen) > 5000:
+        if len(chosen) > 100:
             return chosen
-    print(chosen)
     return chosen
 
 def read_json_file(filename):
@@ -95,35 +94,19 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
         G_edge_ranks = rank_edges(G)
         # hamiltonian = cheapest_hamiltonian(S, G_edge_ranks)
         hamiltonian = prim_hamiltonian(S,G_edge_ranks)
-        # if hamiltonian[0] == -1:
-        #     return
-        # for i in range(len(hamiltonian) - 1):
-        #     labeled_e = (S.nodes[hamiltonian[i]]['color'], S.nodes[hamiltonian[i+1]]['color'])
-        #     for edge in G.edges():
-        #         labeled_e_s = (G.nodes[edge[0]]['color'], G.nodes[edge[1]]['color'])
-        #         if labeled_e_s[0] == labeled_e[0] and labeled_e_s[1] == labeled_e[1]:
-        #             num = 0
-        #             for node in G.neighbors(edge[0]):
-        #                 if G.nodes[node]['color'] == labeled_e[1]:
-        #                     num+=1
-        #             print(num)
-        #         elif labeled_e_s[1] == labeled_e[0] and labeled_e_s[0] == labeled_e_s[1]:
-        #             num = 0
-        #             for node in G.neighbors(edge[0]):
-        #                 if G.nodes[node]['color'] == labeled_e[0]:
-        #                     num+=1
-        #             print(num)
     else:
         with open(ordering_file) as f:
             d = json.load(f)
         hamiltonian = d['ordering']
     end1 = time.time() - start1
-    print(end1)
 
     if hamiltonian[0] == -1:
+        print("{0},{1},{2},{3}".format(graph_name[12],subgraph_name[12],end1,False))
         return False
-    
-    with open('ordering_'+graph_name[5]+'_'+subgraph_name[5] + '.json', 'w') as f:
+    else:
+        print("{0},{1},{2},{3}".format(graph_name[12],subgraph_name[12],end1,True))
+
+    with open('inputs/ordering_'+graph_name[12]+'_'+subgraph_name[12] + '.json', 'w') as f:
         json.dump({"ordering":hamiltonian}, f)
 
     # start2 = time.time()
@@ -134,6 +117,8 @@ def full_pipeline(graph_name,subgraph_name,ordering_file = ""):
     # print("TIME",time2)
 
 # for i in range (8):
-#     full_pipeline('graph' + str(i) + '.json','graph4.json')
-full_pipeline('graph0.json','graph4.json')
+#     for j in range (8):
+#         if i != j:
+#             full_pipeline('inputs/graph' + str(i) + '.json','inputs/graph' + str(j) + '.json')
+full_pipeline('inputs/graph6.json','inputs/graph2.json')
 

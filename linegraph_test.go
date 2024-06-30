@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"sync"
 	"testing"
+	"time"
 )
 
 
@@ -26,9 +27,11 @@ func TestOrdering(t *testing.T){
 			for i := 0; i < len(ordering2); i++{
 				ordering2[i] = uint32(i)
 			}
-			
-			ret1 := FindAllSubgraphPathgraph(S,S,ordering1)
-			ret2 := FindAllSubgraphPathgraph(S,S,ordering2)
+				
+			ti := time.Now()
+			ret1 := FindAllSubgraphPathgraph(S,S,ordering1,ti.Format("2006-01-02 15:04:05.999999"))
+			ti = time.Now()
+			ret2 := FindAllSubgraphPathgraph(S,S,ordering2,ti.Format("2006-01-02 15:04:05.999999"))
 			
 			if ret1 != ret2 {
 				t.Errorf("Ordering changed output")
@@ -57,8 +60,8 @@ func TestFindAll(t *testing.T){
 			for i := 0; i < len(ordering); i++{
 				ordering[i] = uint32(i)
 			}
-			
-			ret := FindAllSubgraphPathgraph(S,S,ordering)
+			ti := time.Now()
+			ret := FindAllSubgraphPathgraph(S,S,ordering,ti.Format("2006-01-02 15:04:05.999999"))
 			if ret != 1 {
 				t.Errorf("Find all multiple finds?")
 				t.Log(ret)

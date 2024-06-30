@@ -4,3 +4,6 @@ go_speed.prof
 *.json
 python tools/__pycache__
 *.txt
+*.pprof
+*.csv
+important outputs/

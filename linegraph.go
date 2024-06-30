@@ -68,12 +68,12 @@ func main() {
 	i := os.Args[1]
     j := os.Args[2]
 	
-	G := ReadGraph(fmt.Sprintf("graph%v.json", i))
-	S := ReadGraph(fmt.Sprintf("graph%v.json", j))
+	G := ReadGraph(fmt.Sprintf("inputs/graph%v.json", i))
+	S := ReadGraph(fmt.Sprintf("inputs/graph%v.json", j))
 	fmt.Println(len(G),len(S))
-	ordering := ReadOrdering(fmt.Sprintf("ordering_%v_%v.json", i,j))
+	ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i,j))
 	start := time.Now()
-	matches := FindAllSubgraphPathgraph(G, S, ordering)
+	matches := FindAllSubgraphPathgraph(G, S, ordering,fmt.Sprintf("output%v_%v", i,j))
 	algo_time := time.Since(start)
 	fmt.Println("done", matches, algo_time.Seconds())
 
@@ -94,11 +94,12 @@ func main() {
 	// }
 }
 
-func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32) uint64 {
+func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32,fname string) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
-	t := time.Now()
-	f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
+	// t := time.Now()
+	// f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
+	f, err := os.Create("dat/" + fname + ".txt")
 	if err != nil {
 		panic(err)
 	}
@@ -145,7 +146,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		// if true{
-		if len(path) < 2 {
+		if len(path) < 1 {
 			targets := []uint32{}
 			new_v_s := uint32(0)
 			new_v_s = ordering[len(path)]
@@ -226,7 +227,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
 	return inverse_restrictions, empty
 }
 
-func ColoredNeighborhood(Graph map[uint32]vertex, u uint32, c uint16) *list {
+func ColoredNeighborhood(Graph graph, u uint32, c uint16) *list {
 	output := list{nil, nil,0}
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
