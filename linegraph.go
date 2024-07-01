@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"strconv"
 	// "runtime/pprof"
 	// "os/signal"
 )
@@ -66,14 +67,19 @@ func main() {
 
 	i := os.Args[1]
 	j := os.Args[2]
+	num_errors, err := strconv.Atoi(os.Args[3])
+    if err != nil {
+        // ... handle error
+        panic(err)
+    }
 
 	G := ReadGraph(fmt.Sprintf("inputs/graph%v.json", i))
 	S := ReadGraph(fmt.Sprintf("inputs/graph%v.json", j))
 	fmt.Println(len(G), len(S))
-	ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
+	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
-	FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-	IncompleteFindAll(G, S, 5,0, fmt.Sprintf("output_bad_%v_%v", i, j))
+	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
+	IncompleteFindAll(G, S, 5,uint32(num_errors), fmt.Sprintf("output_%v_%v_withskips_%v", i, j,num_errors))
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 
@@ -180,6 +186,7 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 
 	temp_ordering := []uint32{5, 6, 7, 8, 9, 11, 2, 0, 1, 3, 4, 10, 12}
 	new_v_s := temp_ordering[len(chosen)]
+	fmt.Println(len(restrictions),len(restrictions[new_v_s]))
 	for target := range restrictions[new_v_s]{
 		if restrictions[new_v_s][target] <= threshold{
 			IncompleteRecusionSearch(Graph,Subgraph,target,new_v_s,restrictions,path,chosen,threshold,file)
@@ -187,7 +194,7 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 	}
 	//skip call!
 	skip_deg := uint32(len(Subgraph[new_v_s].neighborhood))
-	if len(restrictions) > 1 && skip_deg <= threshold{
+	if skip_deg <= threshold{
 		IncompleteRecusionSearch(Graph,Subgraph,^uint32(0),new_v_s,restrictions,path,chosen,threshold - skip_deg,file)
 	}
 
@@ -200,7 +207,7 @@ func IncompleteReverseRestrictions(restrictions map[uint32]map[uint32]uint32,inv
 		if inverse_rest[u][0] == ^uint32(0) {
 			delete(restrictions, u)
 		} else {
-			for u_instance := range inverse_rest {
+			for u_instance := range inverse_rest[u] {
 				restrictions[u][u_instance] = inverse_rest[u][u_instance]
 			}
 		}
