@@ -163,11 +163,13 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 		return 0
 	}
 	if len(Subgraph) == (len(chosen) + 1) {
-		path[v_g] = v_s
+		if v_g != ^uint32(0){
+			path[v_g] = v_s
+			defer delete(path, v_g)
+		}
 		if file != nil {
 			file.WriteString(fmt.Sprintf("%v\n", path))
 		}
-		delete(path, v_g)
 		return 1
 	}
 	ret := 0
