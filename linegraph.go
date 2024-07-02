@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
+	"os/signal"
+	"runtime/pprof"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
-	"strconv"
-	// "runtime/pprof"
-	// "os/signal"
 )
 
 type void struct{}
@@ -42,36 +43,36 @@ type att struct {
 func main() {
 	fmt.Println("hello world")
 
-	// f, err := os.Create("cpu.pprof")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// if err := pprof.StartCPUProfile(f); err != nil {
-	// 	panic(err)
-	// }
-	// defer pprof.StopCPUProfile()
-	// c := make(chan os.Signal, 1)
-	// signal.Notify(c, os.Interrupt)
+	f, err := os.Create("cpu.pprof")
+	if err != nil {
+		panic(err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
 
-	// go func() {
-	// 	for sig := range c {
-	// 		// sig is a ^C (interrupt), handle it
-	// 		if sig == os.Interrupt {
-	// 			pprof.StopCPUProfile()
-	// 			os.Exit(0)
-	// 		}
-	// 	}
-	// }()
+	go func() {
+		for sig := range c {
+			// sig is a ^C (interrupt), handle it
+			if sig == os.Interrupt {
+				pprof.StopCPUProfile()
+				os.Exit(0)
+			}
+		}
+	}()
 
 	// runtime.GOMAXPROCS(64)
 
 	i := os.Args[1]
 	j := os.Args[2]
 	num_errors, err := strconv.Atoi(os.Args[3])
-    if err != nil {
-        // ... handle error
-        panic(err)
-    }
+	if err != nil {
+		// ... handle error
+		panic(err)
+	}
 
 	G := ReadGraph(fmt.Sprintf("inputs/graph%v.json", i))
 	S := ReadGraph(fmt.Sprintf("inputs/graph%v.json", j))
@@ -79,7 +80,7 @@ func main() {
 	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-	IncompleteFindAll(G, S, 5,uint32(num_errors), fmt.Sprintf("output_%v_%v_withskips_%v", i, j,num_errors))
+	IncompleteFindAll(G, S, 5, uint32(num_errors), fmt.Sprintf("output_%v_%v_withskips_%v", i, j, num_errors))
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 
@@ -113,8 +114,8 @@ func IncompleteFindAll(Graph graph, Subgraph graph, root uint32, threshold uint3
 		if Graph[u].attribute.color == Subgraph[root].attribute.color {
 			wg.Add(1)
 			go func(u uint32) {
-				ret := IncompleteRecusionSearch(Graph,Subgraph,u,root,make(map[uint32]map[uint32]uint32),
-												make(map[uint32]uint32),make(map[uint32]void),threshold,f)
+				ret := IncompleteRecusionSearch(Graph, Subgraph, u, root, make(map[uint32]map[uint32]uint32),
+					make(map[uint32]uint32), make(map[uint32]void), threshold, f)
 
 				// fmt.Println("done run",u,time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -130,7 +131,7 @@ func IncompleteFindAll(Graph graph, Subgraph graph, root uint32, threshold uint3
 }
 
 func IncompleteUpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, restrictions map[uint32]map[uint32]uint32,
-	chosen map[uint32]void) map[uint32]map[uint32]uint32 {
+	chosen map[uint32]void, threshold uint32) map[uint32]map[uint32]uint32 {
 
 	inverse_restrictions := make(map[uint32]map[uint32]uint32)
 	for u := range S[v_s].neighborhood {
@@ -148,6 +149,9 @@ func IncompleteUpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, rest
 						}
 						inverse_restrictions[u][u_instance] = restrictions[u][u_instance]
 						restrictions[u][u_instance] += 1
+						if restrictions[u][u_instance] > threshold {
+							delete(restrictions[u], u_instance)
+						}
 					}
 				}
 			}
@@ -163,7 +167,7 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 		return 0
 	}
 	if len(Subgraph) == (len(chosen) + 1) {
-		if v_g != ^uint32(0){
+		if v_g != ^uint32(0) {
 			path[v_g] = v_s
 			defer delete(path, v_g)
 		}
@@ -175,36 +179,66 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 	ret := 0
 	chosen[v_s] = void{}
 	defer delete(chosen, v_s)
-	
-	if v_g != ^uint32(0){
+
+	self_rest := restrictions[v_s]
+	delete(restrictions, v_s)
+
+	if v_g != ^uint32(0) {
 		path[v_g] = v_s
 		defer delete(path, v_g)
-		
-		inverse_restrictions := IncompleteUpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen)
-		defer IncompleteReverseRestrictions(restrictions,inverse_restrictions)
+
+		inverse_restrictions := IncompleteUpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen, threshold)
+		defer IncompleteReverseRestrictions(restrictions, inverse_restrictions)
 	}
-	
 
-
-	temp_ordering := []uint32{5, 6, 7, 8, 9, 11, 2, 0, 1, 3, 4, 10, 12}
-	new_v_s := temp_ordering[len(chosen)]
-	fmt.Println(len(restrictions),len(restrictions[new_v_s]))
-	for target := range restrictions[new_v_s]{
-		if restrictions[new_v_s][target] <= threshold{
-			IncompleteRecusionSearch(Graph,Subgraph,target,new_v_s,restrictions,path,chosen,threshold,file)
+	// temp_ordering := []uint32{5, 6, 7, 8, 9, 11, 2, 0, 1, 3, 4, 10, 12}
+	// new_v_s := temp_ordering[len(chosen)]
+	new_v_s := IncompleteChooseNext(restrictions)
+	fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
+	for target := range restrictions[new_v_s] {
+		if restrictions[new_v_s][target] <= threshold {
+			IncompleteRecusionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold, file)
 		}
 	}
 	//skip call!
+	fmt.Println("skip call")
 	skip_deg := uint32(len(Subgraph[new_v_s].neighborhood))
-	if skip_deg <= threshold{
-		IncompleteRecusionSearch(Graph,Subgraph,^uint32(0),new_v_s,restrictions,path,chosen,threshold - skip_deg,file)
+	if skip_deg <= threshold {
+		IncompleteRecusionSearch(Graph, Subgraph, ^uint32(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, file)
 	}
 
-
+	restrictions[v_s] = self_rest
 	return ret
 }
 
-func IncompleteReverseRestrictions(restrictions map[uint32]map[uint32]uint32,inverse_rest map[uint32]map[uint32]uint32){
+func IncompleteChooseNext(restrictions map[uint32]map[uint32]uint32) uint32 {
+	//we want the max number of errors, but also min length
+	min_score := float32(math.MaxFloat32)
+	idx := uint32(0)
+	for u := range restrictions {
+		score := RestrictionScore(restrictions[u])
+		if score < min_score {
+			min_score = score
+			idx = u
+		}
+	}
+	return idx
+}
+
+func RestrictionScore(input map[uint32]uint32) float32 {
+	// score := float32(0)
+	// for u_instance := range input{
+	// 	if input[u_instance] == 0 {
+	// 		score += 1
+	// 	} else {
+	// 		score += (1 / float32(input[u_instance]))
+	// 	}
+	// }
+	// return score
+	return float32(len(input))
+}
+
+func IncompleteReverseRestrictions(restrictions map[uint32]map[uint32]uint32, inverse_rest map[uint32]map[uint32]uint32) {
 	for u := range inverse_rest {
 		if inverse_rest[u][0] == ^uint32(0) {
 			delete(restrictions, u)
