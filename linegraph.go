@@ -197,7 +197,7 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 	fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
 	for target := range restrictions[new_v_s] {
 		if restrictions[new_v_s][target] <= threshold {
-			IncompleteRecusionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold, file)
+			IncompleteRecusionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold - restrictions[new_v_s][target], file)
 		}
 	}
 	//skip call!
