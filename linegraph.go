@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -109,21 +108,18 @@ func IncompleteFindAll(Graph graph, Subgraph graph, root uint32, threshold uint3
 		panic(err)
 	}
 	defer f.Close()
-	// start_time := time.Now()
+	start_time := time.Now()
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[root].attribute.color {
 			wg.Add(1)
 			go func(u uint32) {
-				ret := IncompleteRecusionSearch(Graph, Subgraph, u, root, make(map[uint32]map[uint32]uint32),
+				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint32]map[uint32]uint32),
 					make(map[uint32]uint32), make(map[uint32]void), threshold, f)
 
-				// fmt.Println("done run",u,time.Since(start_time))
+				fmt.Println("done run",u,time.Since(start_time))
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
-		}
-		if u%512 == 0 {
-			wg.Wait()
 		}
 	}
 	wg.Wait()
@@ -160,7 +156,7 @@ func IncompleteUpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32, rest
 	return inverse_restrictions
 }
 
-func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
+func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	restrictions map[uint32]map[uint32]uint32, path map[uint32]uint32,
 	chosen map[uint32]void, threshold uint32, file *os.File) int {
 	if _, ok := path[v_g]; ok {
@@ -197,14 +193,14 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 	fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
 	for target := range restrictions[new_v_s] {
 		if restrictions[new_v_s][target] <= threshold {
-			IncompleteRecusionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold - restrictions[new_v_s][target], file)
+			IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold - restrictions[new_v_s][target], file)
 		}
 	}
 	//skip call!
 	fmt.Println("skip call")
 	skip_deg := uint32(len(Subgraph[new_v_s].neighborhood))
 	if skip_deg <= threshold {
-		IncompleteRecusionSearch(Graph, Subgraph, ^uint32(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, file)
+		IncompleteRecursionSearch(Graph, Subgraph, ^uint32(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, file)
 	}
 
 	restrictions[v_s] = self_rest
@@ -213,7 +209,7 @@ func IncompleteRecusionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint3
 
 func IncompleteChooseNext(restrictions map[uint32]map[uint32]uint32) uint32 {
 	//we want the max number of errors, but also min length
-	min_score := float32(math.MaxFloat32)
+	min_score := ^uint32(0)
 	idx := uint32(0)
 	for u := range restrictions {
 		score := RestrictionScore(restrictions[u])
@@ -221,21 +217,15 @@ func IncompleteChooseNext(restrictions map[uint32]map[uint32]uint32) uint32 {
 			min_score = score
 			idx = u
 		}
+		if score <= 1{
+			return idx
+		}
 	}
 	return idx
 }
 
-func RestrictionScore(input map[uint32]uint32) float32 {
-	// score := float32(0)
-	// for u_instance := range input{
-	// 	if input[u_instance] == 0 {
-	// 		score += 1
-	// 	} else {
-	// 		score += (1 / float32(input[u_instance]))
-	// 	}
-	// }
-	// return score
-	return float32(len(input))
+func RestrictionScore(input map[uint32]uint32) uint32 {
+	return uint32(len(input))
 }
 
 func IncompleteReverseRestrictions(restrictions map[uint32]map[uint32]uint32, inverse_rest map[uint32]map[uint32]uint32) {
