@@ -108,8 +108,8 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32, fn
 		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
 			wg.Add(1)
 			go func(u uint32) {
-				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint32]*list, len(Subgraph)),
-					make(map[uint32]uint32), f, ordering)
+				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint32]map[uint32]void, len(Subgraph)),
+					make(map[uint32]uint32),make(map[uint32]void), f, ordering)
 
 				fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -125,7 +125,7 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint32, fn
 }
 
 func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
-	restrictions map[uint32]*list, path map[uint32]uint32, file *os.File, ordering []uint32) int {
+	restrictions map[uint32]map[uint32]void, path map[uint32]uint32,chosen map[uint32]void, file *os.File, ordering []uint32) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -139,9 +139,13 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 	}
 	ret := 0
 	path[v_g] = v_s
+	defer delete(path, v_g)
+	chosen[v_s] = void{}
+	defer delete(chosen,v_s)
+
 	self_list := restrictions[v_s]
 	delete(restrictions, v_s)
-	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, path)
+	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen)
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		// if true{
@@ -149,76 +153,87 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint32,
 			targets := []uint32{}
 			new_v_s := uint32(0)
 			new_v_s = ordering[len(path)]
-			for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
-				targets = append(targets, u_instance.value)
+			for u_instance := range restrictions[new_v_s] {
+				targets = append(targets, u_instance)
 			}
-			fmt.Println("targets size", len(targets), "death", len(path))
+			fmt.Println("targets size", len(targets), "depth", len(path))
 			for i := 0; i < len(targets); i++ {
-				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
 			}
 		} else {
-			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, ordering, file)
+			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path,chosen, ordering, file)
 		}
 	}
 	for u := range inverse_restrictions {
-		if inverse_restrictions[u] != nil {
-			if inverse_restrictions[u].start != nil && inverse_restrictions[u].start.value == ^uint32(0) {
-				delete(restrictions, u)
-			} else {
-				restrictions[u] = JoinLists(restrictions[u], inverse_restrictions[u])
+		if _, ok := inverse_restrictions[u][^uint32(0)]; ok {
+			delete(restrictions, u)
+		} else {
+			for u_instance := range inverse_restrictions[u]{
+				if restrictions[u] == nil{
+					restrictions[u] = make(map[uint32]void)
+				}
+				restrictions[u][u_instance] = void{}
 			}
 		}
 	}
-	delete(path, v_g)
 	return ret
 }
 
-func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint32]*list,
-	path map[uint32]uint32, ordering []uint32, file *os.File) int {
+func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint32]map[uint32]void,
+	path map[uint32]uint32,chosen map[uint32]void, ordering []uint32, file *os.File) int {
 	ret := 0
-	best_length := ^uint32(0)
+	best_length := int(^uint32(0))
 	targets := []uint32{}
 	new_v_s := uint32(0)
 	for t := range restrictions {
-		if restrictions[uint32(t)].length < best_length {
-			new_v_s = uint32(t)
-			best_length = restrictions[uint32(t)].length
+		if len(restrictions[t]) < best_length {
+			new_v_s = t
+			best_length = len(restrictions[t])
 		}
-		if best_length == 1 {
-			fmt.Println("targets size", best_length, "death", len(path), "vertex", new_v_s)
-			ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
+		if best_length <= 1 {
+			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s,"short skip")
+			new_v_g := uint32(0)
+			for v := range restrictions[new_v_s]{
+				new_v_g = v
+			}
+			ret += RecursionSearch(Graph, Subgraph,new_v_g, new_v_s, restrictions, path,chosen, file, ordering)
 			return ret
 		}
 	}
-	for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
-		targets = append(targets, u_instance.value)
+	for u_instance := range restrictions[new_v_s] {
+		targets = append(targets, u_instance)
 	}
 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
 	for i := 0; i < len(targets); i++ {
-		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
 	}
 	return ret
 }
 
 func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
-	restrictions map[uint32]*list, path map[uint32]uint32) (map[uint32]*list, bool) {
+	restrictions map[uint32]map[uint32]void, chosen map[uint32]void) (map[uint32]map[uint32]void, bool) {
 	empty := false
-	inverse_restrictions := make(map[uint32]*list, len(S))
-	rev_path := reverseMap(path)
+	inverse_restrictions := make(map[uint32]map[uint32]void)
 	for u := range S[v_s].neighborhood {
-		if _, ok := rev_path[u]; !ok {
+		if _, ok := chosen[u]; !ok {
 			if _, ok := restrictions[u]; !ok {
 				restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
-				el := element{^uint32(0), nil}
-				inverse_restrictions[u] = &list{&el, &el, 0}
+				inverse_restrictions[u] = make(map[uint32]void)
+				inverse_restrictions[u][^uint32(0)] = void{}
 			} else {
-				var dis discriminator = func(u_instance uint32) bool {
-					_, ok := G[v_g].neighborhood[u_instance]
-					return ok
-				}
-				restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u], dis)
+					// _, ok := G[v_g].neighborhood[u_instance]
+				for u_instance := range restrictions[u]{
+					if _, ok := G[v_g].neighborhood[u_instance]; !ok{
+						if inverse_restrictions[u] == nil{
+							inverse_restrictions[u] = map[uint32]void{}
+						}
+						inverse_restrictions[u][u_instance] = void{}
+						delete(restrictions[u],u_instance)
+					}
+				}				
+				
 			}
-			if restrictions[u].length == 0 {
+			if len(restrictions[u]) == 0 {
 				empty = true
 			}
 		}
@@ -226,15 +241,14 @@ func UpdateRestrictions(G graph, S graph, v_g uint32, v_s uint32,
 	return inverse_restrictions, empty
 }
 
-func ColoredNeighborhood(Graph graph, u uint32, c uint16) *list {
-	output := list{nil, nil, 0}
+func ColoredNeighborhood(Graph graph, u uint32, c uint16) map[uint32]void {
+	output := make(map[uint32]void)
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
-			el := element{v, nil}
-			ListAppend(&output, &el)
+			output[v] = void{}
 		}
 	}
-	return &output
+	return output
 }
 
 func SplitList(l *list, which discriminator) (*list, *list) {
@@ -320,10 +334,10 @@ func PrintList(l *list) {
 	fmt.Println()
 }
 
-func reverseMap(m map[uint32]uint32) map[uint32]uint32 {
-	n := make(map[uint32]uint32, len(m))
-	for k, v := range m {
-		n[v] = k
-	}
-	return n
-}
+// func reverseMap(m map[uint32]uint32) map[uint32]uint32 {
+// 	n := make(map[uint32]uint32, len(m))
+// 	for k, v := range m {
+// 		n[v] = k
+// 	}
+// 	return n
+// }

@@ -85,7 +85,7 @@ func TestSelfFind(t *testing.T){
 			for i := 0; i < len(ordering); i++{
 				ordering[i] = uint32(i)
 			}
-			ret := RecursionSearch(S,S,0,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
+			ret := RecursionSearch(S,S,0,0,make(map[uint32]map[uint32]void),make(map[uint32]uint32),make(map[uint32]void),nil,ordering)
 			if ret == 0 {
 				t.Errorf("didnt find itself")
 			}
@@ -117,7 +117,7 @@ func TestSelfFind(t *testing.T){
 			}
 			for u := uint32(0); u < uint32(len(G)); u++{
 				if G[u].attribute.color == S[0].attribute.color{
-					ret += RecursionSearch(G,S,u,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
+					ret += RecursionSearch(G,S,u,0,make(map[uint32]map[uint32]void),make(map[uint32]uint32),make(map[uint32]void),nil,ordering)
 				}
 			}
 			if ret < 1 {
