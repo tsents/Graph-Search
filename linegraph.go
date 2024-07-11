@@ -97,7 +97,7 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint32, fname stri
 	}
 
 	IncompleteFindWithRoot(Graph, Subgraph, 0, threshold, make(map[uint32]void), file)
-	// IncompleteCaller(Graph, Subgraph, 0, threshold, make(map[uint32]void), m, file)
+	IncompleteCaller(Graph, Subgraph, 0, threshold, make(map[uint32]void), m, file)
 
 	// ignore := make(map[uint32]void)
 
@@ -117,29 +117,30 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint32, fname stri
 func IncompleteCaller(Graph graph, Subgraph graph, v_start uint32, threshold uint32, ignore map[uint32]void, componnent map[uint32]void, file *os.File) {
 	if uint32(len(Subgraph[v_start].neighborhood)) > threshold{
 		return
-	}
-	fmt.Println("call",v_start,threshold,ignore)
-	IncompleteFindWithRoot(Graph, Subgraph, v_start, threshold, ignore, file)
-	
+	}	
 	delete(componnent,v_start)
+
+	ignore[v_start] = void{}
+	defer delete(ignore, v_start)
+
+	threshold -= uint32(len(Subgraph[v_start].neighborhood))
+	
 	new_components := ConnectedComponents(Subgraph, componnent)
 	
 	fmt.Println(new_components, componnent, ignore, len(new_components),v_start)
 
 	for i := 0; i < len(new_components); i++ {
 		if len(new_components[i]) > 0 {
-			
 			new_v := uint32(0)
 			for v := range new_components[i] {
 				new_v = v
 				break
 			}
-			ignore[v_start] = void{}
+			fmt.Println("call",new_v,threshold,ignore)
 
-			threshold -= uint32(len(Subgraph[v_start].neighborhood))
+			IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, file)
 
 			IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], file)
-			delete(ignore, v_start)
 		}
 	}
 }
