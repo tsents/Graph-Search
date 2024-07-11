@@ -127,7 +127,9 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint32, threshold uin
 
 			ignore[v_start] = void{}
 			delete(new_components[i], v_start)
-			IncompleteCaller(Graph, Subgraph, v_start, threshold-uint32(len(Subgraph[v_start].neighborhood)), ignore, new_components[i], file)
+			if threshold > uint32(len(Subgraph[v_start].neighborhood)){
+				IncompleteCaller(Graph, Subgraph, v_start, threshold-uint32(len(Subgraph[v_start].neighborhood)), ignore, new_components[i], file)
+			}
 			delete(ignore, v_start)
 		}
 	}
