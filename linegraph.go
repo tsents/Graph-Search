@@ -96,7 +96,8 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint32, fname stri
 		m[v] = void{}
 	}
 
-	IncompleteCaller(Graph, Subgraph, 0, threshold, make(map[uint32]void), m, file)
+	IncompleteFindWithRoot(Graph, Subgraph, 0, threshold, make(map[uint32]void), file)
+	// IncompleteCaller(Graph, Subgraph, 0, threshold, make(map[uint32]void), m, file)
 
 	// ignore := make(map[uint32]void)
 
@@ -107,29 +108,37 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint32, fname stri
 	// 		break
 	// 	}
 	// 	file.WriteString(fmt.Sprintf("starting with %v\n",ignore))
-	// 	IncompleteFindWithRoot(Graph, Subgraph, v_start, threshold, ignore, file)
+	// IncompleteFindWithRoot(Graph, Subgraph, 0, threshold, make(map[uint32]void), file)
 	// 	ignore[v_start] = void{}
 	// 	deg = uint32(len(Subgraph[v_start].neighborhood))
 	// 	threshold -= deg
 	// }
 }
 func IncompleteCaller(Graph graph, Subgraph graph, v_start uint32, threshold uint32, ignore map[uint32]void, componnent map[uint32]void, file *os.File) {
+	if uint32(len(Subgraph[v_start].neighborhood)) > threshold{
+		return
+	}
+	fmt.Println("call",v_start,threshold,ignore)
+	IncompleteFindWithRoot(Graph, Subgraph, v_start, threshold, ignore, file)
+	
+	delete(componnent,v_start)
 	new_components := ConnectedComponents(Subgraph, componnent)
+	
 	fmt.Println(new_components, componnent, ignore, len(new_components),v_start)
+
 	for i := 0; i < len(new_components); i++ {
 		if len(new_components[i]) > 0 {
-			v_start := uint32(0)
+			
+			new_v := uint32(0)
 			for v := range new_components[i] {
-				v_start = v
+				new_v = v
 				break
 			}
-			IncompleteFindWithRoot(Graph, Subgraph, v_start, threshold, ignore, file)
-
 			ignore[v_start] = void{}
-			delete(new_components[i], v_start)
-			if threshold > uint32(len(Subgraph[v_start].neighborhood)){
-				IncompleteCaller(Graph, Subgraph, v_start, threshold-uint32(len(Subgraph[v_start].neighborhood)), ignore, new_components[i], file)
-			}
+
+			threshold -= uint32(len(Subgraph[v_start].neighborhood))
+
+			IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], file)
 			delete(ignore, v_start)
 		}
 	}
@@ -142,7 +151,7 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint32, threshold 
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[root].attribute.color {
 			wg.Add(1)
-			go func(u uint32) {
+			func(u uint32) {
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint32]map[uint32]uint32),
 					make(map[uint32]uint32), deepCopy(ignore), threshold, file)
 
@@ -153,7 +162,7 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint32, threshold 
 		}
 	}
 	wg.Wait()
-	fmt.Println("done run", time.Since(start_time))
+	fmt.Println("done run", time.Since(start_time),ops.Load())
 	return ops.Load()
 }
 
@@ -206,33 +215,34 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint32, v_s uint
 	ret := 0
 	chosen[v_s] = void{}
 	defer delete(chosen, v_s)
-
-	self_rest := restrictions[v_s]
-	delete(restrictions, v_s)
-
+	
 	if v_g != ^uint32(0) {
 		path[v_g] = v_s
-		defer delete(path, v_g)
+		defer delete(path, v_g)	
 
 		inverse_restrictions := IncompleteUpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen, threshold)
 		defer IncompleteReverseRestrictions(restrictions, inverse_restrictions)
+		self_rest := restrictions[v_s]
+		delete(restrictions,v_s)
+		defer func(){restrictions[v_s] = self_rest}()
 	}
 
 	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph)
 	// fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
+
+	// cpy := deepCopy(restrictions[new_v_s])
 	for target := range restrictions[new_v_s] {
 		if restrictions[new_v_s][target] <= threshold {
-			IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], file)
+			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], file)
 		}
 	}
 	//skip call!
 	// fmt.Println("skip call")
 	skip_deg := uint32(len(Subgraph[new_v_s].neighborhood))
 	if skip_deg <= threshold {
-		IncompleteRecursionSearch(Graph, Subgraph, ^uint32(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, file)
+		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint32(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, file)
 	}
 
-	restrictions[v_s] = self_rest
 	return ret
 }
 
@@ -241,13 +251,15 @@ func IncompleteChooseNext(restrictions map[uint32]map[uint32]uint32, chosen map[
 	min_score := ^uint32(0)
 	idx := ^uint32(0)
 	for u := range restrictions {
-		score := RestrictionScore(restrictions[u])
-		if score < min_score {
-			min_score = score
-			idx = u
-		}
-		if score <= 1 {
-			return idx
+		if _, ok := chosen[u]; !ok{
+			score := RestrictionScore(restrictions[u])
+			if score < min_score {
+				min_score = score
+				idx = u
+			}
+			if score <= 1 {
+				return idx
+			}
 		}
 	}
 	if idx == ^uint32(0) {
