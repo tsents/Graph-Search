@@ -15,17 +15,17 @@ func TestOrdering(t *testing.T){
 		go func () {
 			S := Gnp(1e2,1e-2)
 
-			for j := uint32(0); j < 1e2-1; j++{
+			for j := uint64(0); j < 1e2-1; j++{
 				S.AddEdge(j,j+1)
 			}
-			ordering1 := make([]uint32,len(S))
+			ordering1 := make([]uint64,len(S))
 			for i := 0; i < len(ordering1); i++{
-				ordering1[i] = uint32(len(ordering1) - i - 1)
+				ordering1[i] = uint64(len(ordering1) - i - 1)
 			}
 
-			ordering2 := make([]uint32,len(S))
+			ordering2 := make([]uint64,len(S))
 			for i := 0; i < len(ordering2); i++{
-				ordering2[i] = uint32(i)
+				ordering2[i] = uint64(i)
 			}
 				
 			ti := time.Now()
@@ -53,12 +53,12 @@ func TestFindAll(t *testing.T){
 		go func () {
 			S := Gnp(1e3,1e-2)
 
-			for j := uint32(0); j < 1e3-1; j++{
+			for j := uint64(0); j < 1e3-1; j++{
 				S.AddEdge(j,j+1)
 			}
-			ordering := make([]uint32,len(S))
+			ordering := make([]uint64,len(S))
 			for i := 0; i < len(ordering); i++{
-				ordering[i] = uint32(i)
+				ordering[i] = uint64(i)
 			}
 			ti := time.Now()
 			ret := FindAllSubgraphPathgraph(S,S,ordering,ti.Format("2006-01-02 15:04:05.999999"))
@@ -78,14 +78,14 @@ func TestSelfFind(t *testing.T){
 		wg.Add(1)
 		go func () {
 			S := Gnp(1e2,1e-1)
-			for j := uint32(0); j < 99; j++{
+			for j := uint64(0); j < 99; j++{
 				S.AddEdge(j,j+1)
 			}
-			ordering := make([]uint32,len(S))
+			ordering := make([]uint64,len(S))
 			for i := 0; i < len(ordering); i++{
-				ordering[i] = uint32(i)
+				ordering[i] = uint64(i)
 			}
-			ret := RecursionSearch(S,S,0,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
+			ret := RecursionSearch(S,S,0,0,make(map[uint64]*list),make(map[uint64]uint64),nil,ordering)
 			if ret == 0 {
 				t.Errorf("didnt find itself")
 			}
@@ -98,26 +98,26 @@ func TestSelfFind(t *testing.T){
 		go func () {
 			S := Gnp(1e1,1e-1)
 			G := Gnp(1e2,1e-2)
-			for j := uint32(0); j < 10; j++{
+			for j := uint64(0); j < 10; j++{
 				G.AddVertex(1e2+j,S[j].attribute.color)
 			}
-			for j := uint32(0); j < 10; j++{
-				for k := uint32(0); k < 10; k++{
+			for j := uint64(0); j < 10; j++{
+				for k := uint64(0); k < 10; k++{
 					G.AddEdge(1e2+j,1e2+k)
 				}
 			}
 
-			for j := uint32(0); j < 9; j++{
+			for j := uint64(0); j < 9; j++{
 				S.AddEdge(j,j+1)
 			}
 			ret := 0
-			ordering := make([]uint32,len(S))
+			ordering := make([]uint64,len(S))
 			for i := 0; i < len(ordering); i++{
-				ordering[i] = uint32(i)
+				ordering[i] = uint64(i)
 			}
-			for u := uint32(0); u < uint32(len(G)); u++{
+			for u := uint64(0); u < uint64(len(G)); u++{
 				if G[u].attribute.color == S[0].attribute.color{
-					ret += RecursionSearch(G,S,u,0,make(map[uint32]*list),make(map[uint32]uint32),nil,ordering)
+					ret += RecursionSearch(G,S,u,0,make(map[uint64]*list),make(map[uint64]uint64),nil,ordering)
 				}
 			}
 			if ret < 1 {
@@ -133,7 +133,7 @@ func TestLists(t *testing.T) {
 	for j := 0; j < 1e3; j++{
 		l := list{nil,nil,0}
 		for i := 0; i < 1e4; i++ {
-			el := element{rand.Uint32N(1000000),nil}
+			el := element{rand.Uint64N(1000000),nil}
 			ListAppend(&l,&el)
 		}
 		if l.end == nil {
@@ -153,10 +153,10 @@ func TestListsSplit(t *testing.T){
 	for j := 0; j < 1e2; j++{
 		l := list{nil,nil,0}
 		for i := 0; i < 1e2; i++ {
-			el := element{rand.Uint32N(1000000),nil}
+			el := element{rand.Uint64N(1000000),nil}
 			ListAppend(&l,&el)
 		}
-		var dis discriminator = func(u uint32) bool {
+		var dis discriminator = func(u uint64) bool {
 			return rand.Float32() <= 0.5
 		}
 		l1,l2 := SplitList(&l,dis)
@@ -213,12 +213,12 @@ func TestListsJoin(t *testing.T) {
 	for j := 0; j < 1e3; j++{
 		l1 := list{nil,nil,0}
 		for i := 0; i < 1e3; i++ {
-			el := element{rand.Uint32N(1000000),nil}
+			el := element{rand.Uint64N(1000000),nil}
 			ListAppend(&l1,&el)
 		}
 		l2 := list{nil,nil,0}
 		for i := 0; i < 1e3; i++ {
-			el := element{rand.Uint32N(1000000),nil}
+			el := element{rand.Uint64N(1000000),nil}
 			ListAppend(&l2,&el)
 		}
 		k := 0
