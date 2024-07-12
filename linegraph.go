@@ -38,10 +38,7 @@ type att struct {
 	color uint16
 }
 
-// idea - store Graph as map of vertex -> neighboorhood -> void (neighborhood is a set)
 func main() {
-	fmt.Println("hello world")
-
 	// f, err := os.Create("cpu.pprof")
 	// if err != nil {
 	// 	panic(err)
@@ -67,33 +64,42 @@ func main() {
 
 	out_fname := flag.String("out","dat/output.txt","output location")
 	cmd_error := flag.Int("err",0,"number of errors in the search\ndefault is exact isomorphism (default 0)")
-	
+	input_fmt := flag.String("fmt","json","The file format to read\njson node-link,folder to .edges,.labels")
 	flag.Parse()
 
-	fmt.Println(*out_fname)
+	fmt.Println("output ->",*out_fname)
+	out_file, err := os.Create(*out_fname)
+	if err != nil {
+		panic(err)
+	}
+	defer out_file.Close()
 	
-	sub_fname := flag.Args()[0]
-	gra_fname := flag.Args()[1]
+	gra_fname := flag.Args()[0]
+	sub_fname := flag.Args()[1]
 	num_errors := *cmd_error
 
-	G := ReadGraph(sub_fname)
-	S := ReadGraph(gra_fname)
+	G := ReadGraph(gra_fname,*input_fmt)
+	S := ReadGraph(sub_fname,*input_fmt)
+	m := make(map[uint64]void)
+	for i := range S{
+		m[i] = void{}
+	}
+	S_componnents := ConnectedComponents(S,m)
+	new_S := make(graph)
+	for i := range S_componnents[0]{
+		new_S[i] = S[i]
+	}
+	S = new_S
 	fmt.Println(len(G), len(S))
 	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-	IncompleteFindAll(G, S, uint64(num_errors), *out_fname)
+	IncompleteFindAll(G, S, uint64(num_errors), out_file)
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 }
 
-func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, fname string) {
-	file, err := os.Create(fname)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
+func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, file *os.File) {
 	m := make(map[uint64]void)
 	for v := range Subgraph {
 		m[v] = void{}
@@ -130,8 +136,6 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uin
 
 	new_components := ConnectedComponents(Subgraph, componnent)
 
-	fmt.Println(new_components, componnent, ignore, len(new_components), v_start)
-
 	for i := 0; i < len(new_components); i++ {
 		if len(new_components[i]) > 0 {
 			new_v := uint64(0)
@@ -155,7 +159,7 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[root].attribute.color {
 			wg.Add(1)
-			func(u uint64) {
+			go func(u uint64) {
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
 					make(map[uint64]uint64), deepCopy(ignore), threshold, file)
 
@@ -232,7 +236,7 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 	}
 
 	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph)
-	// fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
+	fmt.Println("depth", len(chosen), len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
 
 	// cpy := deepCopy(restrictions[new_v_s])
 	for target := range restrictions[new_v_s] {
