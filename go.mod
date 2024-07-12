@@ -1,3 +1,3 @@
-module go_speed
+module subgraph_isomorphism
 
 go 1.22.3

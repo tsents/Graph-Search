@@ -1,9 +1,8 @@
 dat/
-go_speed
-go_speed.prof
 *.json
 python tools/__pycache__
 *.txt
 *.pprof
+subgraph_isomorphism
 *.csv
 important outputs/

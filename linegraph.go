@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"os/signal"
-	"runtime/pprof"
-	"strconv"
+	// "os/signal"
+	// "runtime/pprof"
+	"flag"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,50 +42,53 @@ type att struct {
 func main() {
 	fmt.Println("hello world")
 
-	f, err := os.Create("cpu.pprof")
-	if err != nil {
-		panic(err)
-	}
-	if err := pprof.StartCPUProfile(f); err != nil {
-		panic(err)
-	}
-	defer pprof.StopCPUProfile()
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	// f, err := os.Create("cpu.pprof")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	panic(err)
+	// }
+	// defer pprof.StopCPUProfile()
+	// c := make(chan os.Signal, 1)
+	// signal.Notify(c, os.Interrupt)
 
-	go func() {
-		for sig := range c {
-			// sig is a ^C (interrupt), handle it
-			if sig == os.Interrupt {
-				pprof.StopCPUProfile()
-				os.Exit(0)
-			}
-		}
-	}()
+	// go func() {
+	// 	for sig := range c {
+	// 		// sig is a ^C (interrupt), handle it
+	// 		if sig == os.Interrupt {
+	// 			pprof.StopCPUProfile()
+	// 			os.Exit(0)
+	// 		}
+	// 	}
+	// }()
 
 	// runtime.GOMAXPROCS(64)
 
-	i := os.Args[1]
-	j := os.Args[2]
-	num_errors, err := strconv.Atoi(os.Args[3])
-	if err != nil {
-		// ... handle error
-		panic(err)
-	}
+	out_fname := flag.String("out","dat/output.txt","output location")
+	cmd_error := flag.Int("err",0,"number of errors in the search\ndefault is exact isomorphism (default 0)")
+	
+	flag.Parse()
 
-	G := ReadGraph(fmt.Sprintf("inputs/graph%v.json", i))
-	S := ReadGraph(fmt.Sprintf("inputs/graph%v.json", j))
+	fmt.Println(*out_fname)
+	
+	sub_fname := flag.Args()[0]
+	gra_fname := flag.Args()[1]
+	num_errors := *cmd_error
+
+	G := ReadGraph(sub_fname)
+	S := ReadGraph(gra_fname)
 	fmt.Println(len(G), len(S))
 	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-	IncompleteFindAll(G, S, uint64(num_errors), fmt.Sprintf("output_%v_%v_withskips_%v", i, j, num_errors))
+	IncompleteFindAll(G, S, uint64(num_errors), *out_fname)
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 }
 
 func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, fname string) {
-	file, err := os.Create("dat/" + fname + ".txt")
+	file, err := os.Create(fname)
 	if err != nil {
 		panic(err)
 	}
@@ -115,19 +118,19 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, fname stri
 	// }
 }
 func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, file *os.File) {
-	if uint64(len(Subgraph[v_start].neighborhood)) > threshold{
+	if uint64(len(Subgraph[v_start].neighborhood)) > threshold {
 		return
-	}	
-	delete(componnent,v_start)
+	}
+	delete(componnent, v_start)
 
 	ignore[v_start] = void{}
 	defer delete(ignore, v_start)
 
 	threshold -= uint64(len(Subgraph[v_start].neighborhood))
-	
+
 	new_components := ConnectedComponents(Subgraph, componnent)
-	
-	fmt.Println(new_components, componnent, ignore, len(new_components),v_start)
+
+	fmt.Println(new_components, componnent, ignore, len(new_components), v_start)
 
 	for i := 0; i < len(new_components); i++ {
 		if len(new_components[i]) > 0 {
@@ -136,7 +139,7 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uin
 				new_v = v
 				break
 			}
-			fmt.Println("call",new_v,threshold,ignore)
+			fmt.Println("call", new_v, threshold, ignore)
 
 			IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, file)
 
@@ -163,7 +166,7 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 		}
 	}
 	wg.Wait()
-	fmt.Println("done run", time.Since(start_time),ops.Load())
+	fmt.Println("done run", time.Since(start_time), ops.Load())
 	return ops.Load()
 }
 
@@ -216,16 +219,16 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 	ret := 0
 	chosen[v_s] = void{}
 	defer delete(chosen, v_s)
-	
+
 	if v_g != ^uint64(0) {
 		path[v_g] = v_s
-		defer delete(path, v_g)	
+		defer delete(path, v_g)
 
 		inverse_restrictions := IncompleteUpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen, threshold)
 		defer IncompleteReverseRestrictions(restrictions, inverse_restrictions)
 		self_rest := restrictions[v_s]
-		delete(restrictions,v_s)
-		defer func(){restrictions[v_s] = self_rest}()
+		delete(restrictions, v_s)
+		defer func() { restrictions[v_s] = self_rest }()
 	}
 
 	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph)
@@ -252,7 +255,7 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 	min_score := ^uint64(0)
 	idx := ^uint64(0)
 	for u := range restrictions {
-		if _, ok := chosen[u]; !ok{
+		if _, ok := chosen[u]; !ok {
 			score := RestrictionScore(restrictions[u])
 			if score < min_score {
 				min_score = score
