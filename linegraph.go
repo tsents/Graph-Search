@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"runtime"
 )
 
 type void struct{}
@@ -60,14 +61,16 @@ func main() {
 	// 	}
 	// }()
 
-	// runtime.GOMAXPROCS(64)
+	runtime.GOMAXPROCS(32) //regularization, keeps cpu under control
 
 	out_fname := flag.String("out","dat/output.txt","output location")
 	cmd_error := flag.Int("err",0,"number of errors in the search\ndefault is exact isomorphism (default 0)")
 	input_fmt := flag.String("fmt","json","The file format to read\njson node-link,folder to .edges,.labels")
+	input_parse := flag.String("parse","%d\t%d","The parse format of reading from file, used only for folder fmt")
 	flag.Parse()
 
 	fmt.Println("output ->",*out_fname)
+	fmt.Println("parsing :",*input_parse)
 	out_file, err := os.Create(*out_fname)
 	if err != nil {
 		panic(err)
@@ -78,8 +81,8 @@ func main() {
 	sub_fname := flag.Args()[1]
 	num_errors := *cmd_error
 
-	G := ReadGraph(gra_fname,*input_fmt)
-	S := ReadGraph(sub_fname,*input_fmt)
+	G := ReadGraph(gra_fname,*input_fmt,*input_parse)
+	S := ReadGraph(sub_fname,*input_fmt,*input_parse)
 	m := make(map[uint64]void)
 	for i := range S{
 		m[i] = void{}
@@ -157,7 +160,8 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 	var ops atomic.Uint64
 	start_time := time.Now()
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[root].attribute.color {
+		if Graph[u].attribute.color == Subgraph[root].attribute.color ||
+		   Graph[u].attribute.color == ^uint16(0) || Subgraph[root].attribute.color == ^uint16(0) {
 			wg.Add(1)
 			go func(u uint64) {
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
@@ -167,6 +171,9 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
+		}
+		if u%512 == 0{ // regulrization, keeps memory under control
+			wg.Wait()
 		}
 	}
 	wg.Wait()
@@ -432,7 +439,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
 func ColoredNeighborhood(Graph graph, u uint64, c uint16) *list {
 	output := list{nil, nil, 0}
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c {
+		if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint16(0){
 			el := element{v, nil}
 			ListAppend(&output, &el)
 		}
@@ -443,7 +450,7 @@ func ColoredNeighborhood(Graph graph, u uint64, c uint16) *list {
 func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16) map[uint64]uint64 {
 	output := make(map[uint64]uint64)
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c {
+		if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint16(0){
 			output[v] = 0
 		}
 	}
@@ -504,6 +511,12 @@ func (Graph graph) AddVertex(u uint64, c uint16) {
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
+	if _,ok := Graph[u]; !ok{
+		Graph.AddVertex(u,^uint16(0))
+	}
+	if _,ok := Graph[v]; !ok{
+		Graph.AddVertex(v,^uint16(0))
+	}
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
 }

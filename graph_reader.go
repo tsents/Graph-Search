@@ -33,7 +33,7 @@ func loadJSON[T any](filename string) (T, error) {
 	return data, json.Unmarshal(fileData, &data)
 }
 
-func ReadGraph(filename string, input_fmt string) graph {
+func ReadGraph(filename string, input_fmt string,input_parse string) graph {
 	switch input_fmt {
 	case "json":
 		if !strings.HasSuffix(filename, ".json") {
@@ -41,7 +41,7 @@ func ReadGraph(filename string, input_fmt string) graph {
 		}
 		return readJsonGrpah(filename)
 	case "folder":
-		return readFolderGraph(filename)
+		return readFolderGraph(filename,input_parse)
 	}
 	panic("no valid format")
 }
@@ -57,7 +57,7 @@ func readJsonGrpah(filename string) graph {
 	return output
 }
 
-func readFolderGraph(dirname string) graph {
+func readFolderGraph(dirname string,input_parse string) graph {
 	var output graph = make(graph)
 	var vertex_fname string
 	var edges_fname string
@@ -90,7 +90,7 @@ func readFolderGraph(dirname string) graph {
 	for scanner.Scan() {
 		var vertex uint64
 		var color uint16
-		_, err := fmt.Sscanf(scanner.Text(), "%d %d", &vertex, &color)
+		_, err := fmt.Sscanf(scanner.Text(), input_parse, &vertex, &color)
 		if err != nil{
 			panic(err)
 		}
@@ -107,7 +107,7 @@ func readFolderGraph(dirname string) graph {
 	scanner = bufio.NewScanner(edges_file)
 	for scanner.Scan() {
 		var u, v uint64
-		n, err := fmt.Sscanf(scanner.Text(), "%d\t%d", &u, &v)
+		n, err := fmt.Sscanf(scanner.Text(), input_parse, &u, &v)
 		if err != nil || n != 2 {
 			fmt.Println("Error parsing line:", scanner.Text())
 			continue
