@@ -1,13 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand/v2"
 	"os"
 	"os/signal"
-	"runtime/pprof"
-	"flag"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,10 +39,11 @@ type att struct {
 	color uint16
 }
 
-var prior_policy *int;
+var prior_policy *int
 var missing_policy *int
-var start_point *int64;
-var output_file *os.File;
+var start_point *int64
+var output_file *os.File
+
 // var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
 
 func main() {
@@ -52,15 +53,15 @@ func main() {
 	cmd_error := flag.Int("err", 0, "number of errors in the search\ndefault is exact isomorphism (default 0)")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
-	prior_policy = flag.Int("prior",0,"the prior of the information we gain from vertex, based on S=0,G=1 or Constant=2")
+	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on S=0,G=1 or Constant=2")
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
-	missing_policy = flag.Int("missing",-1,"missing value policy, defualt is 'any color',else is rand.N")
-	profile := flag.Bool("prof",false,"profile the program")
-	start_point = flag.Int64("start",0,"the starting point of the search")
-	
+	missing_policy = flag.Int("missing", -1, "missing value policy, defualt is 'any color',else is rand.N")
+	profile := flag.Bool("prof", false, "profile the program")
+	start_point = flag.Int64("start", 0, "the starting point of the search")
+
 	flag.Parse()
 
-	if *profile{
+	if *profile {
 		f, err := os.Create("cpu.pprof")
 		if err != nil {
 			panic(err)
@@ -71,7 +72,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
-	
+
 		go func() {
 			for sig := range c {
 				// sig is a ^C (interrupt), handle it
@@ -83,11 +84,11 @@ func main() {
 		}()
 	}
 
-
 	fmt.Println("output ->", *out_fname)
 	fmt.Println("parsing :", *input_parse)
 	fmt.Println("prior :", *prior_policy)
-	output_file, err := os.Create(*out_fname)
+	var err error
+	output_file, err = os.Create(*out_fname)
 	if err != nil {
 		panic(err)
 	}
@@ -181,27 +182,27 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) {
 	}
 
 	prior := make(map[uint64]uint64)
-	switch *prior_policy{
+	switch *prior_policy {
 	case 0:
-		for v := range Subgraph{
+		for v := range Subgraph {
 			prior[v] += uint64(len(Subgraph[v].neighborhood))
-			for u := range Subgraph[v].neighborhood{
+			for u := range Subgraph[v].neighborhood {
 				prior[v] += uint64(len(Subgraph[u].neighborhood))
 			}
 		}
 	case 1:
-		for v := range Graph{
+		for v := range Graph {
 			prior[v] += uint64(len(Graph[v].neighborhood))
-			for u := range Graph[v].neighborhood{
+			for u := range Graph[v].neighborhood {
 				prior[v] += uint64(len(Graph[u].neighborhood))
 			}
 		}
 	}
-	IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void),prior)
-	IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m,prior)
+	IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), prior)
+	IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m, prior)
 }
 
-func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void,prior map[uint64]uint64) {
+func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]uint64) {
 	if uint64(len(Subgraph[v_start].neighborhood)) > threshold {
 		return
 	}
@@ -223,24 +224,24 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uin
 			}
 			fmt.Println("call", new_v, threshold, ignore)
 
-			IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore,prior)
+			IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, prior)
 
-			IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i],prior)
+			IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], prior)
 		}
 	}
 }
 
-func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void,prior map[uint64]uint64) uint64 {
+func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void, prior map[uint64]uint64) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
 	start_time := time.Now()
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[root].attribute.color ||
-		Graph[u].attribute.color == ^uint16(0) || Subgraph[root].attribute.color == ^uint16(0) {
+			Graph[u].attribute.color == ^uint16(0) || Subgraph[root].attribute.color == ^uint16(0) {
 			wg.Add(1)
 			go func(u uint64) {
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
-					make(map[uint64]uint64), deepCopy(ignore), threshold,prior)
+					make(map[uint64]uint64), deepCopy(ignore), threshold, prior)
 
 				// fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -258,37 +259,59 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 
 func IncompleteUpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64, restrictions map[uint64]map[uint64]uint64,
 	chosen map[uint64]void, threshold uint64) map[uint64]map[uint64]uint64 {
-
 	inverse_restrictions := make(map[uint64]map[uint64]uint64)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for u := range S[v_s].neighborhood {
-		if _, ok := chosen[u]; !ok {
-			if _, ok := restrictions[u]; !ok {
-				//the restrictions is uninitialized
-				restrictions[u] = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color,len(S[u].neighborhood))
-				inverse_restrictions[u] = make(map[uint64]uint64)
-				inverse_restrictions[u][0] = ^uint64(0) //special value to denote restrictions is new
-			} else {
-				for u_instance := range restrictions[u] {
-					if _, ok := G[v_g].neighborhood[u_instance]; !ok {
-						if inverse_restrictions[u] == nil {
-							inverse_restrictions[u] = make(map[uint64]uint64)
-						}
-						inverse_restrictions[u][u_instance] = restrictions[u][u_instance]
-						restrictions[u][u_instance] += 1
-						if restrictions[u][u_instance] > threshold {
-							delete(restrictions[u], u_instance)
-						}
-					}
-				}
+		wg.Add(1)
+		go func(u uint64) {
+			if _, ok := chosen[u]; ok {
+				wg.Done()
+				return
+			}
+			mu.Lock()
+			cur_rest := restrictions[u]
+			inv_rest := inverse_restrictions[u]
+			mu.Unlock()
+
+			incompleteSingleUpdate(G, S, u, v_g, threshold, &(cur_rest), &(inv_rest))
+
+			mu.Lock()
+			restrictions[u] = cur_rest
+			inverse_restrictions[u] = inv_rest
+			mu.Unlock()
+			wg.Done()
+		}(u)
+	}
+	wg.Wait()
+	return inverse_restrictions
+}
+
+func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold uint64, rest *map[uint64]uint64, inv_rest *map[uint64]uint64) {
+	if *rest == nil {
+		//the restrictions is uninitialized
+		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood))
+		*inv_rest = make(map[uint64]uint64)
+		(*inv_rest)[0] = ^uint64(0) //special value to denote restrictions is new
+		return
+	}
+	for u_instance := range *rest {
+		if _, ok := G[v_g].neighborhood[u_instance]; !ok {
+			if *inv_rest == nil {
+				*inv_rest = make(map[uint64]uint64)
+			}
+			(*inv_rest)[u_instance] = (*rest)[u_instance]
+			(*rest)[u_instance] += 1
+			if (*rest)[u_instance] > threshold {
+				delete(*rest, u_instance)
 			}
 		}
 	}
-	return inverse_restrictions
 }
 
 func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 	restrictions map[uint64]map[uint64]uint64, path map[uint64]uint64,
-	chosen map[uint64]void, threshold uint64,prior map[uint64]uint64) int {
+	chosen map[uint64]void, threshold uint64, prior map[uint64]uint64) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -315,45 +338,45 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 		defer func() { restrictions[v_s] = self_rest }()
 	}
 
-	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph,prior)
-	fmt.Println("depth", len(chosen),"target size", len(restrictions[new_v_s]), "skips", len(chosen)-len(path))
+	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph, prior)
+	fmt.Println("depth", len(chosen), "target size", len(restrictions[new_v_s]), "open", len(restrictions), "skips", len(chosen)-len(path))
 
 	// cpy := deepCopy(restrictions[new_v_s])
 	for target := range restrictions[new_v_s] {
 		if restrictions[new_v_s][target] <= threshold {
-			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target],prior)
+			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], prior)
 		}
 	}
 	//skip call!
 	// fmt.Println("skip call")
 	skip_deg := uint64(len(Subgraph[new_v_s].neighborhood))
 	if skip_deg <= threshold {
-		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint64(0), new_v_s, restrictions, path, chosen, threshold-skip_deg,prior)
+		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint64(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, prior)
 	}
 
 	return ret
 }
 
-func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[uint64]void, Subgraph graph,prior map[uint64]uint64) uint64 {
+func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[uint64]void, Subgraph graph, prior map[uint64]uint64) uint64 {
 	//we want the max number of errors, but also min length
 	max_score := uint64(0)
 	idx := ^uint64(0)
-	for u := range restrictions{
-		if _, ok := chosen[u]; !ok {
-			if len(restrictions[u]) == 0{
-				return u
-			}
-		}
-	}
+	// for u := range restrictions {
+	// 	if _, ok := chosen[u]; !ok {
+	// 		if len(restrictions[u]) == 0 {
+	// 			return u
+	// 		}
+	// 	}
+	// }
 	for u := range restrictions {
 		if _, ok := chosen[u]; !ok {
-			score := RestrictionScore(restrictions,prior,u)
+			if len(restrictions[u]) <= 1 {
+				return u
+			}
+			score := RestrictionScore(restrictions, prior, u)
 			if score > max_score {
 				max_score = score
 				idx = u
-			}
-			if len(restrictions[u]) == 1 {
-				return u
 			}
 		}
 	}
@@ -367,18 +390,18 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 	return idx
 }
 
-func RestrictionScore(rest map[uint64]map[uint64]uint64,prior map[uint64]uint64,u uint64) uint64 {
-	switch *prior_policy{
+func RestrictionScore(rest map[uint64]map[uint64]uint64, prior map[uint64]uint64, u uint64) uint64 {
+	switch *prior_policy {
 	case 0:
 		return prior[u]
 	case 1:
 		score := uint64(0)
-		for u_instance := range rest[u]{
+		for u_instance := range rest[u] {
 			score += prior[u_instance]
 		}
 		return score
 	case 2:
-		return uint64(1024/len(rest[u]))
+		return uint64(1024 / len(rest[u]))
 	}
 	return 0
 }
@@ -539,8 +562,8 @@ func ColoredNeighborhood(Graph graph, u uint64, c uint16) *list {
 	return &output
 }
 
-func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16,deg int) map[uint64]uint64 {
-	output := make(map[uint64]uint64,len(Graph[u].neighborhood))
+func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[uint64]uint64 {
+	output := make(map[uint64]uint64, len(Graph[u].neighborhood))
 	for v := range Graph[u].neighborhood {
 		if len(Graph[v].neighborhood) >= deg {
 			if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint16(0) {
@@ -611,14 +634,14 @@ func (Graph graph) AddEdge(u uint64, v uint64) {
 	}
 	if _, ok := Graph[u]; !ok {
 		if *missing_policy == -1 {
-			Graph.AddVertex(u,^uint16(0))
+			Graph.AddVertex(u, ^uint16(0))
 		} else {
 			Graph.AddVertex(u, uint16(rand.N(*missing_policy)))
 		}
 	}
 	if _, ok := Graph[v]; !ok {
 		if *missing_policy == -1 {
-			Graph.AddVertex(v,^uint16(0))
+			Graph.AddVertex(v, ^uint16(0))
 		} else {
 			Graph.AddVertex(v, uint16(rand.N(*missing_policy)))
 		}
