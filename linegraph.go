@@ -181,20 +181,20 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) {
 		m[v] = void{}
 	}
 
-	prior := make(map[uint64]uint64)
+	prior := make(map[uint64]float32)
 	switch *prior_policy {
-	case 0:
+	case 0: //d^2 in S
 		for v := range Subgraph {
-			prior[v] += uint64(len(Subgraph[v].neighborhood))
+			// prior[v] += float32(len(Subgraph[v].neighborhood))
 			for u := range Subgraph[v].neighborhood {
-				prior[v] += uint64(len(Subgraph[u].neighborhood))
+				prior[v] += float32(len(Subgraph[u].neighborhood))
 			}
 		}
-	case 1:
+	case 1: //d^2 in G
 		for v := range Graph {
-			prior[v] += uint64(len(Graph[v].neighborhood))
+			// prior[v] += float32(len(Graph[v].neighborhood))
 			for u := range Graph[v].neighborhood {
-				prior[v] += uint64(len(Graph[u].neighborhood))
+				prior[v] += float32(len(Graph[u].neighborhood))
 			}
 		}
 	}
@@ -202,7 +202,7 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) {
 	IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m, prior)
 }
 
-func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]uint64) {
+func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]float32) {
 	if uint64(len(Subgraph[v_start].neighborhood)) > threshold {
 		return
 	}
@@ -231,7 +231,7 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uin
 	}
 }
 
-func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void, prior map[uint64]uint64) uint64 {
+func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void, prior map[uint64]float32) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
 	start_time := time.Now()
@@ -311,7 +311,7 @@ func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold ui
 
 func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 	restrictions map[uint64]map[uint64]uint64, path map[uint64]uint64,
-	chosen map[uint64]void, threshold uint64, prior map[uint64]uint64) int {
+	chosen map[uint64]void, threshold uint64, prior map[uint64]float32) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -357,9 +357,9 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 	return ret
 }
 
-func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[uint64]void, Subgraph graph, prior map[uint64]uint64) uint64 {
+func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
 	//we want the max number of errors, but also min length
-	max_score := uint64(0)
+	max_score := float32(0)
 	idx := ^uint64(0)
 	// for u := range restrictions {
 	// 	if _, ok := chosen[u]; !ok {
@@ -373,7 +373,7 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 			if len(restrictions[u]) <= 1 {
 				return u
 			}
-			score := RestrictionScore(restrictions, prior, u)
+			score := RestrictionScore(restrictions, prior, u, len(chosen))
 			if score > max_score {
 				max_score = score
 				idx = u
@@ -390,18 +390,18 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 	return idx
 }
 
-func RestrictionScore(rest map[uint64]map[uint64]uint64, prior map[uint64]uint64, u uint64) uint64 {
+func RestrictionScore(rest map[uint64]map[uint64]uint64, prior map[uint64]float32, u uint64, depth int) float32 {
 	switch *prior_policy {
 	case 0:
 		return prior[u]
 	case 1:
-		score := uint64(0)
+		score := float32(0)
 		for u_instance := range rest[u] {
 			score += prior[u_instance]
 		}
 		return score
 	case 2:
-		return uint64(1024 / len(rest[u]))
+		return 1024 / float32(len(rest[u]))
 	}
 	return 0
 }
