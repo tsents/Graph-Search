@@ -25,8 +25,8 @@ type element struct {
 }
 
 type list struct {
-	start  *element
-	end    *element
+	start   *element
+	end     *element
 	length uint64
 }
 
@@ -109,7 +109,14 @@ func main() {
 	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-	IncompleteFindAll(G, S, uint64(num_errors))
+
+
+	// if num_errors != 0{
+	// 	IncompleteFindAll(G, S, uint64(num_errors))
+	// } else {
+	// 	FindAllSubgraphPathgraph(G,S,[]uint64{uint64(*start_point)},"bla")
+	// }
+	IncompleteFindAll(G,S,uint64(num_errors))
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 }
@@ -433,8 +440,8 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fn
 		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
 			wg.Add(1)
 			go func(u uint64) {
-				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint64]*list, len(Subgraph)),
-					make(map[uint64]uint64), f, ordering)
+				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint64]map[uint64]void, len(Subgraph)),
+					make(map[uint64]uint64),make(map[uint64]void), f, ordering)
 
 				fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -450,7 +457,7 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fn
 }
 
 func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]*list, path map[uint64]uint64, file *os.File, ordering []uint64) int {
+	restrictions map[uint64]map[uint64]void, path map[uint64]uint64,chosen map[uint64]void, file *os.File, ordering []uint64) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -464,86 +471,100 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 	}
 	ret := 0
 	path[v_g] = v_s
+	defer delete(path, v_g)
+	chosen[v_s] = void{}
+	defer delete(chosen,v_s)
+
 	self_list := restrictions[v_s]
 	delete(restrictions, v_s)
-	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, path)
+	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen)
 	inverse_restrictions[v_s] = self_list
 	if !empty {
-		// if true{
-		if len(path) < 1 {
+		if len(path) < len(ordering) {
 			targets := []uint64{}
 			new_v_s := uint64(0)
 			new_v_s = ordering[len(path)]
-			for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
-				targets = append(targets, u_instance.value)
+			for u_instance := range restrictions[new_v_s] {
+				targets = append(targets, u_instance)
 			}
-			fmt.Println("targets size", len(targets), "death", len(path))
+			fmt.Println("targets size", len(targets), "depth", len(path))
 			for i := 0; i < len(targets); i++ {
-				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
 			}
 		} else {
-			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, ordering, file)
+			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path,chosen, ordering, file)
 		}
 	}
 	for u := range inverse_restrictions {
-		if inverse_restrictions[u] != nil {
-			if inverse_restrictions[u].start != nil && inverse_restrictions[u].start.value == ^uint64(0) {
-				delete(restrictions, u)
-			} else {
-				restrictions[u] = JoinLists(restrictions[u], inverse_restrictions[u])
+		if _, ok := inverse_restrictions[u][^uint64(0)]; ok {
+			delete(restrictions, u)
+		} else {
+			for u_instance := range inverse_restrictions[u]{
+				if restrictions[u] == nil{
+					restrictions[u] = make(map[uint64]void)
+				}
+				restrictions[u][u_instance] = void{}
 			}
 		}
 	}
-	delete(path, v_g)
 	return ret
 }
 
-func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]*list,
-	path map[uint64]uint64, ordering []uint64, file *os.File) int {
+func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
+	path map[uint64]uint64,chosen map[uint64]void, ordering []uint64, file *os.File) int {
 	ret := 0
 	best_length := ^uint64(0)
 	targets := []uint64{}
 	new_v_s := uint64(0)
 	for t := range restrictions {
-		if restrictions[uint64(t)].length < best_length {
-			new_v_s = uint64(t)
-			best_length = restrictions[uint64(t)].length
+		if uint64(len(restrictions[t])) < best_length {
+			new_v_s = t
+			best_length = uint64(len(restrictions[t]))
 		}
-		if best_length == 1 {
-			fmt.Println("targets size", best_length, "death", len(path), "vertex", new_v_s)
-			ret += RecursionSearch(Graph, Subgraph, restrictions[new_v_s].start.value, new_v_s, restrictions, path, file, ordering)
+		if best_length <= 1 {
+			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s,"short skip")
+			new_v_g := uint64(0)
+			for v := range restrictions[new_v_s]{
+				new_v_g = v
+			}
+			ret += RecursionSearch(Graph, Subgraph,new_v_g, new_v_s, restrictions, path,chosen, file, ordering)
 			return ret
 		}
 	}
-	for u_instance := restrictions[new_v_s].start; u_instance != nil; u_instance = u_instance.next {
-		targets = append(targets, u_instance.value)
+	for u_instance := range restrictions[new_v_s] {
+		targets = append(targets, u_instance)
 	}
 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
 	for i := 0; i < len(targets); i++ {
-		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, file, ordering)
+		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
 	}
 	return ret
 }
 
 func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]*list, path map[uint64]uint64) (map[uint64]*list, bool) {
+	restrictions map[uint64]map[uint64]void, chosen map[uint64]void) (map[uint64]map[uint64]void, bool) {
 	empty := false
-	inverse_restrictions := make(map[uint64]*list, len(S))
-	rev_path := reverseMap(path)
+	inverse_restrictions := make(map[uint64]map[uint64]void)
 	for u := range S[v_s].neighborhood {
-		if _, ok := rev_path[u]; !ok {
+		if _, ok := chosen[u]; !ok {
 			if _, ok := restrictions[u]; !ok {
 				restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
-				el := element{^uint64(0), nil}
-				inverse_restrictions[u] = &list{&el, &el, 0}
+				inverse_restrictions[u] = make(map[uint64]void)
+				inverse_restrictions[u][^uint64(0)] = void{}
 			} else {
-				var dis discriminator = func(u_instance uint64) bool {
-					_, ok := G[v_g].neighborhood[u_instance]
-					return ok
-				}
-				restrictions[u], inverse_restrictions[u] = SplitList(restrictions[u], dis)
+					// _, ok := G[v_g].neighborhood[u_instance]
+				for u_instance := range restrictions[u]{
+					if _, ok := G[v_g].neighborhood[u_instance]; !ok{
+						if inverse_restrictions[u] == nil{
+							inverse_restrictions[u] = map[uint64]void{}
+						}
+						inverse_restrictions[u][u_instance] = void{}
+						delete(restrictions[u],u_instance)
+					}
+				}				
+				
 			}
-			if restrictions[u].length == 0 {
+			if len(restrictions[u]) == 0 {
 				empty = true
 			}
 		}
@@ -551,15 +572,14 @@ func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
 	return inverse_restrictions, empty
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint16) *list {
-	output := list{nil, nil, 0}
+func ColoredNeighborhood(Graph graph, u uint64, c uint16) map[uint64]void {
+	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint16(0) {
-			el := element{v, nil}
-			ListAppend(&output, &el)
+		if Graph[v].attribute.color == c {
+			output[v] = void{}
 		}
 	}
-	return &output
+	return output
 }
 
 func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[uint64]uint64 {
@@ -671,6 +691,7 @@ func PrintList(l *list) {
 	for u_instance := l.start; u_instance != nil; u_instance = u_instance.next {
 		fmt.Print(u_instance.value, u_instance.next, u_instance, ',')
 	}
+	fmt.Print("\tlength", l.length)
 	fmt.Print("\tlength", l.length)
 	fmt.Println()
 }
