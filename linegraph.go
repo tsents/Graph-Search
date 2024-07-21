@@ -15,20 +15,9 @@ import (
 
 type void struct{}
 
-type discriminator func(uint64) bool
 
 type graph map[uint64]vertex
 
-type element struct {
-	value uint64
-	next  *element
-}
-
-type list struct {
-	start   *element
-	end     *element
-	length uint64
-}
 
 type vertex struct {
 	attribute    att
@@ -40,7 +29,7 @@ type att struct {
 }
 
 var prior_policy *int
-var missing_policy *int
+var recolor_policy *int
 var start_point *int64
 var output_file *os.File
 
@@ -55,7 +44,7 @@ func main() {
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
 	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on S=0,G=1 or Constant=2")
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
-	missing_policy = flag.Int("missing", -1, "missing value policy, defualt is 'any color',else is rand.N")
+	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
 	start_point = flag.Int64("start", 0, "the starting point of the search")
 
@@ -594,57 +583,16 @@ func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[u
 	return output
 }
 
-func SplitList(l *list, which discriminator) (*list, *list) {
-	l1 := &list{nil, nil, 0}
-	l2 := &list{nil, nil, 0}
-	var next *element
-	for el := l.start; el != nil; el = next {
-		next = el.next
-		if which(el.value) {
-			ListAppend(l1, el)
-		} else {
-			ListAppend(l2, el)
-		}
-	}
-	return l1, l2
-}
-
-func JoinLists(l1 *list, l2 *list) *list {
-	if l2 == nil {
-		return l1
-	}
-	if l1 == nil {
-		return l2
-	}
-	l1.length += l2.length
-	if l1.start == nil {
-		return l2
-	}
-	if l2.start == nil {
-		return l1
-	}
-	// fmt.Println(l1,l2)
-	l1.end.next = l2.start
-	l1.end = l2.end
-	return l1
-}
-
-func ListAppend(l *list, el *element) {
-	l.length += 1
-	el.next = nil
-	if l.start == nil {
-		l.start = el
-		l.end = el
-		return
-	}
-	l.end.next = el
-	l.end = el
-}
 
 func (Graph graph) AddVertex(u uint64, c uint16) {
-	if _, ok := Graph[u]; !ok {
-		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
+	if _, ok := Graph[u]; ok {
+		return	
 	}
+	if *recolor_policy == -1{
+		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
+		return
+	} 
+	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint16(rand.N(*recolor_policy))}}
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
@@ -653,18 +601,10 @@ func (Graph graph) AddEdge(u uint64, v uint64) {
 		return
 	}
 	if _, ok := Graph[u]; !ok {
-		if *missing_policy == -1 {
-			Graph.AddVertex(u, ^uint16(0))
-		} else {
-			Graph.AddVertex(u, uint16(rand.N(*missing_policy)))
-		}
+		Graph.AddVertex(u, ^uint16(0))
 	}
 	if _, ok := Graph[v]; !ok {
-		if *missing_policy == -1 {
-			Graph.AddVertex(v, ^uint16(0))
-		} else {
-			Graph.AddVertex(v, uint16(rand.N(*missing_policy)))
-		}
+		Graph.AddVertex(v, ^uint16(0))
 	}
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
@@ -685,23 +625,6 @@ func Gnp(n uint64, p float32) graph {
 		}
 	}
 	return Graph
-}
-
-func PrintList(l *list) {
-	for u_instance := l.start; u_instance != nil; u_instance = u_instance.next {
-		fmt.Print(u_instance.value, u_instance.next, u_instance, ',')
-	}
-	fmt.Print("\tlength", l.length)
-	fmt.Print("\tlength", l.length)
-	fmt.Println()
-}
-
-func reverseMap(m map[uint64]uint64) map[uint64]uint64 {
-	n := make(map[uint64]uint64, len(m))
-	for k, v := range m {
-		n[v] = k
-	}
-	return n
 }
 
 func deepCopy[T, V comparable](m map[T]V) map[T]V {
