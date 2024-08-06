@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"sync"
 	"sync/atomic"
@@ -15,9 +16,7 @@ import (
 
 type void struct{}
 
-
 type graph map[uint64]vertex
-
 
 type vertex struct {
 	attribute    att
@@ -36,7 +35,9 @@ var output_file *os.File
 // var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
 
 func main() {
-	runtime.GOMAXPROCS(32) //regularization, keeps cpu under control
+	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
+	debug.SetMaxStack(2 * 128 * 1024 * 1024)      //GBit
+	debug.SetMemoryLimit(200 * 128 * 1024 * 1024) //GBit
 
 	out_fname := flag.String("out", "dat/output.txt", "output location")
 	cmd_error := flag.Int("err", 0, "number of errors in the search\ndefault is exact isomorphism (default 0)")
@@ -99,13 +100,12 @@ func main() {
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
 
-
 	// if num_errors != 0{
 	// 	IncompleteFindAll(G, S, uint64(num_errors))
 	// } else {
 	// 	FindAllSubgraphPathgraph(G,S,[]uint64{uint64(*start_point)},"bla")
 	// }
-	IncompleteFindAll(G,S,uint64(num_errors))
+	IncompleteFindAll(G, S, uint64(num_errors))
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 }
@@ -286,7 +286,8 @@ func IncompleteUpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64, rest
 func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold uint64, rest *map[uint64]uint64, inv_rest *map[uint64]uint64) {
 	if *rest == nil {
 		//the restrictions is uninitialized
-		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood))
+		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood)-int(threshold))
+		// when doing the degree constraint, we need the degree to be above d_u - threshold, because up to K edges may be gone
 		*inv_rest = make(map[uint64]uint64)
 		(*inv_rest)[0] = ^uint64(0) //special value to denote restrictions is new
 		return
@@ -430,7 +431,7 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fn
 			wg.Add(1)
 			go func(u uint64) {
 				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint64]map[uint64]void, len(Subgraph)),
-					make(map[uint64]uint64),make(map[uint64]void), f, ordering)
+					make(map[uint64]uint64), make(map[uint64]void), f, ordering)
 
 				fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -446,7 +447,7 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fn
 }
 
 func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]map[uint64]void, path map[uint64]uint64,chosen map[uint64]void, file *os.File, ordering []uint64) int {
+	restrictions map[uint64]map[uint64]void, path map[uint64]uint64, chosen map[uint64]void, file *os.File, ordering []uint64) int {
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -462,7 +463,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 	path[v_g] = v_s
 	defer delete(path, v_g)
 	chosen[v_s] = void{}
-	defer delete(chosen,v_s)
+	defer delete(chosen, v_s)
 
 	self_list := restrictions[v_s]
 	delete(restrictions, v_s)
@@ -478,18 +479,18 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 			}
 			fmt.Println("targets size", len(targets), "depth", len(path))
 			for i := 0; i < len(targets); i++ {
-				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
+				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen, file, ordering)
 			}
 		} else {
-			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path,chosen, ordering, file)
+			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, chosen, ordering, file)
 		}
 	}
 	for u := range inverse_restrictions {
 		if _, ok := inverse_restrictions[u][^uint64(0)]; ok {
 			delete(restrictions, u)
 		} else {
-			for u_instance := range inverse_restrictions[u]{
-				if restrictions[u] == nil{
+			for u_instance := range inverse_restrictions[u] {
+				if restrictions[u] == nil {
 					restrictions[u] = make(map[uint64]void)
 				}
 				restrictions[u][u_instance] = void{}
@@ -500,7 +501,7 @@ func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 }
 
 func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
-	path map[uint64]uint64,chosen map[uint64]void, ordering []uint64, file *os.File) int {
+	path map[uint64]uint64, chosen map[uint64]void, ordering []uint64, file *os.File) int {
 	ret := 0
 	best_length := ^uint64(0)
 	targets := []uint64{}
@@ -511,12 +512,12 @@ func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]ma
 			best_length = uint64(len(restrictions[t]))
 		}
 		if best_length <= 1 {
-			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s,"short skip")
+			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s, "short skip")
 			new_v_g := uint64(0)
-			for v := range restrictions[new_v_s]{
+			for v := range restrictions[new_v_s] {
 				new_v_g = v
 			}
-			ret += RecursionSearch(Graph, Subgraph,new_v_g, new_v_s, restrictions, path,chosen, file, ordering)
+			ret += RecursionSearch(Graph, Subgraph, new_v_g, new_v_s, restrictions, path, chosen, file, ordering)
 			return ret
 		}
 	}
@@ -525,7 +526,7 @@ func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]ma
 	}
 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
 	for i := 0; i < len(targets); i++ {
-		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path,chosen, file, ordering)
+		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen, file, ordering)
 	}
 	return ret
 }
@@ -541,17 +542,17 @@ func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
 				inverse_restrictions[u] = make(map[uint64]void)
 				inverse_restrictions[u][^uint64(0)] = void{}
 			} else {
-					// _, ok := G[v_g].neighborhood[u_instance]
-				for u_instance := range restrictions[u]{
-					if _, ok := G[v_g].neighborhood[u_instance]; !ok{
-						if inverse_restrictions[u] == nil{
+				// _, ok := G[v_g].neighborhood[u_instance]
+				for u_instance := range restrictions[u] {
+					if _, ok := G[v_g].neighborhood[u_instance]; !ok {
+						if inverse_restrictions[u] == nil {
 							inverse_restrictions[u] = map[uint64]void{}
 						}
 						inverse_restrictions[u][u_instance] = void{}
-						delete(restrictions[u],u_instance)
+						delete(restrictions[u], u_instance)
 					}
-				}				
-				
+				}
+
 			}
 			if len(restrictions[u]) == 0 {
 				empty = true
@@ -583,15 +584,14 @@ func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[u
 	return output
 }
 
-
 func (Graph graph) AddVertex(u uint64, c uint16) {
 	if _, ok := Graph[u]; ok {
-		return	
+		return
 	}
-	if *recolor_policy == -1{
+	if *recolor_policy == -1 {
 		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
 		return
-	} 
+	}
 	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint16(rand.N(*recolor_policy))}}
 }
 
