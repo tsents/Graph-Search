@@ -105,9 +105,10 @@ func main() {
 	// } else {
 	// 	FindAllSubgraphPathgraph(G,S,[]uint64{uint64(*start_point)},"bla")
 	// }
-	IncompleteFindAll(G, S, uint64(num_errors))
+	var matches uint64 = IncompleteFindAll(G, S, uint64(num_errors))
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
+	fmt.Println("matches", matches)
 }
 
 // func colorDist(Graph graph) {
@@ -171,7 +172,7 @@ func graphSubset(Graph graph, subset map[uint64]void) graph {
 	return cpy
 }
 
-func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) {
+func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) uint64 {
 	m := make(map[uint64]void)
 	for v := range Subgraph {
 		m[v] = void{}
@@ -194,16 +195,18 @@ func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) {
 			}
 		}
 	}
-	IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), prior)
-	IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m, prior)
+	var ret uint64 = 0
+	ret += IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), prior)
+	ret += IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m, prior)
+	return ret
 }
 
-func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]float32) {
+func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]float32) uint64 {
 	if uint64(len(Subgraph[v_start].neighborhood)) > threshold {
-		return
+		return 0
 	}
 	delete(componnent, v_start)
-
+	var ret uint64 = 0
 	ignore[v_start] = void{}
 	defer delete(ignore, v_start)
 
@@ -220,11 +223,12 @@ func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uin
 			}
 			fmt.Println("call", new_v, threshold, ignore)
 
-			IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, prior)
+			ret += IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, prior)
 
-			IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], prior)
+			ret += IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], prior)
 		}
 	}
+	return ret
 }
 
 func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void, prior map[uint64]float32) uint64 {
