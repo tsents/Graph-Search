@@ -15,7 +15,7 @@ type JSON_ordering struct {
 
 type JSON_graph struct {
 	Nodes []struct {
-		Color uint16 `json:"color"`
+		Color uint32 `json:"color"`
 		ID    uint64 `json:"id"`
 	} `json:"nodes"`
 	Links []struct {
@@ -50,7 +50,7 @@ func readJsonGrpah(filename string) graph {
 	dat, _ := loadJSON[JSON_graph](filename)
 	var output graph = make(graph)
 	for i := 0; i < len(dat.Nodes); i++ {
-		output.AddVertex(uint64(dat.Nodes[i].ID), uint16(dat.Nodes[i].Color))
+		output.AddVertex(uint64(dat.Nodes[i].ID), uint32(dat.Nodes[i].Color))
 	}
 	for i := 0; i < len(dat.Links); i++ {
 		output.AddEdge(dat.Links[i].Source, dat.Links[i].Target)
@@ -91,7 +91,7 @@ func readFolderGraph(dirname string, input_parse string) graph {
 		scanner := bufio.NewScanner(vertex_file)
 		for scanner.Scan() {
 			var vertex uint64
-			var color uint16
+			var color uint32
 			_, err := fmt.Sscanf(scanner.Text(), input_parse, &vertex, &color)
 			if err != nil {
 				panic(err)
@@ -112,7 +112,7 @@ func readFolderGraph(dirname string, input_parse string) graph {
 		var u, v uint64
 		n, err := fmt.Sscanf(scanner.Text(), input_parse, &u, &v)
 		if err != nil || n != 2 {
-			fmt.Println("Error parsing line:", scanner.Text(),err)
+			fmt.Println("Error parsing line:", scanner.Text(), err)
 		} else {
 			output.AddEdge(u, v)
 		}

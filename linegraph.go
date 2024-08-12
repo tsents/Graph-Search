@@ -24,7 +24,7 @@ type vertex struct {
 }
 
 type att struct {
-	color uint16
+	color uint32
 }
 
 var prior_policy *int
@@ -47,7 +47,7 @@ func main() {
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
-	start_point = flag.Int64("start", 0, "the starting point of the search")
+	start_point = flag.Int64("start", 1, "the starting point of the search")
 
 	flag.Parse()
 
@@ -96,6 +96,8 @@ func main() {
 		S = reduceGraph(G, int(*subset_size))
 	}
 	fmt.Println(len(G), len(S))
+	colorDist(G)
+	colorDist(S)
 	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
@@ -111,13 +113,13 @@ func main() {
 	fmt.Println("matches", matches)
 }
 
-// func colorDist(Graph graph) {
-// 	bins := make(map[uint16]uint64)
-// 	for _, v := range Graph {
-// 		bins[v.attribute.color] += 1
-// 	}
-// 	fmt.Println(bins)
-// }
+func colorDist(Graph graph) {
+	bins := make(map[uint32]uint64)
+	for _, v := range Graph {
+		bins[v.attribute.color] += 1
+	}
+	fmt.Println(bins)
+}
 
 func reduceGraph(Graph graph, size int) graph {
 	m := make(map[uint64]void)
@@ -237,7 +239,7 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 	start_time := time.Now()
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[root].attribute.color ||
-			Graph[u].attribute.color == ^uint16(0) || Subgraph[root].attribute.color == ^uint16(0) {
+			Graph[u].attribute.color == ^uint32(0) || Subgraph[root].attribute.color == ^uint32(0) {
 			wg.Add(1)
 			go func(u uint64) {
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
@@ -566,7 +568,7 @@ func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
 	return inverse_restrictions, empty
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint16) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
@@ -576,11 +578,11 @@ func ColoredNeighborhood(Graph graph, u uint64, c uint16) map[uint64]void {
 	return output
 }
 
-func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[uint64]uint64 {
+func PriorityColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]uint64 {
 	output := make(map[uint64]uint64, len(Graph[u].neighborhood))
 	for v := range Graph[u].neighborhood {
 		if len(Graph[v].neighborhood) >= deg {
-			if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint16(0) {
+			if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint32(0) {
 				output[v] = 0
 			}
 		}
@@ -588,7 +590,7 @@ func PriorityColoredNeighborhood(Graph graph, u uint64, c uint16, deg int) map[u
 	return output
 }
 
-func (Graph graph) AddVertex(u uint64, c uint16) {
+func (Graph graph) AddVertex(u uint64, c uint32) {
 	if _, ok := Graph[u]; ok {
 		return
 	}
@@ -596,7 +598,7 @@ func (Graph graph) AddVertex(u uint64, c uint16) {
 		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
 		return
 	}
-	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint16(rand.N(*recolor_policy))}}
+	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint32(rand.N(*recolor_policy))}}
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
@@ -605,10 +607,10 @@ func (Graph graph) AddEdge(u uint64, v uint64) {
 		return
 	}
 	if _, ok := Graph[u]; !ok {
-		Graph.AddVertex(u, ^uint16(0))
+		Graph.AddVertex(u, ^uint32(0))
 	}
 	if _, ok := Graph[v]; !ok {
-		Graph.AddVertex(v, ^uint16(0))
+		Graph.AddVertex(v, ^uint32(0))
 	}
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
@@ -618,7 +620,7 @@ func Gnp(n uint64, p float32) graph {
 	Graph := make(graph)
 	for i := uint64(0); i < n; i++ {
 		color := rand.N(5)
-		Graph.AddVertex(i, uint16(color))
+		Graph.AddVertex(i, uint32(color))
 	}
 
 	for i := uint64(0); i < n; i++ {
