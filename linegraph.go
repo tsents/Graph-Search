@@ -93,7 +93,7 @@ func main() {
 		sub_fname := flag.Args()[1]
 		S = ReadGraph(sub_fname, *input_fmt, *input_parse)
 	} else {
-		S = reduceGraph(G, int(*subset_size))
+		S = ReduceGraph(G, int(*subset_size))
 	}
 	fmt.Println(len(G), len(S))
 	colorDist(G)
@@ -121,7 +121,7 @@ func colorDist(Graph graph) {
 	fmt.Println(bins)
 }
 
-func reduceGraph(Graph graph, size int) graph {
+func ReduceGraph(Graph graph, size int) graph {
 	m := make(map[uint64]void)
 	for i := range Graph {
 		m[i] = void{}
@@ -292,7 +292,7 @@ func IncompleteUpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64, rest
 func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold uint64, rest *map[uint64]uint64, inv_rest *map[uint64]uint64) {
 	if *rest == nil {
 		//the restrictions is uninitialized
-		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood)-int(threshold))
+		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood)-int(threshold), 0)
 		// when doing the degree constraint, we need the degree to be above d_u - threshold, because up to K edges may be gone
 		*inv_rest = make(map[uint64]uint64)
 		(*inv_rest)[0] = ^uint64(0) //special value to denote restrictions is new
@@ -578,12 +578,12 @@ func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
 	return output
 }
 
-func PriorityColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]uint64 {
+func PriorityColoredNeighborhood(Graph graph, u uint64, c uint32, deg int, err uint64) map[uint64]uint64 {
 	output := make(map[uint64]uint64, len(Graph[u].neighborhood))
 	for v := range Graph[u].neighborhood {
 		if len(Graph[v].neighborhood) >= deg {
 			if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint32(0) {
-				output[v] = 0
+				output[v] = err
 			}
 		}
 	}
