@@ -45,6 +45,7 @@ func main() {
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
 	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on S=0,G=1 or Constant=2")
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
+	print_subset := flag.Bool("subout", false, "if subset, output it at that folder")
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
 	start_point = flag.Int64("start", 1, "the starting point of the search")
@@ -94,6 +95,54 @@ func main() {
 		S = ReadGraph(sub_fname, *input_fmt, *input_parse)
 	} else {
 		S = reduceGraph(G, int(*subset_size))
+		if int64(len(S)) < *subset_size {
+			m := make(map[uint64]void)
+			for v := range G {
+				m[v] = void{}
+			}
+			var componnents []map[uint64]void = ConnectedComponents(G, m) //array of sets of vertecies
+
+			largest := len(componnents[0])
+			largest_component := componnents[0]
+			for i := 1; i < len(componnents); i++ {
+				fmt.Println("componnentsize", len(componnents[i]))
+				if len(componnents[i]) > largest {
+					largest = len(componnents[i])
+					largest_component = componnents[i]
+				}
+			}
+			for idx := range largest_component {
+				*start_point = int64(idx)
+				break
+			}
+			S = reduceGraph(G, int(*subset_size))
+		}
+
+		if *print_subset {
+			if err := os.MkdirAll(fmt.Sprintf("dat/subgraphs/subs%d", *start_point), os.ModePerm); err != nil {
+				panic(err)
+			}
+			sub_vertecies, err := os.Create(fmt.Sprintf("dat/subgraphs/subs%d/sub.node_labels", *start_point))
+			if err != nil {
+				panic(err)
+			}
+			for v := range S {
+				fmt.Fprintln(sub_vertecies, v, S[v].attribute.color)
+			}
+			sub_vertecies.Close()
+			sub_edges, err := os.Create(fmt.Sprintf("dat/subgraphs/subs%d/sub.edges", *start_point))
+			if err != nil {
+				panic(err)
+			}
+			for v := range S {
+				for u := range S[v].neighborhood {
+					if u >= v {
+						fmt.Fprintln(sub_edges, v, u)
+					}
+				}
+			}
+			sub_edges.Close()
+		}
 	}
 	fmt.Println(len(G), len(S))
 	colorDist(G)
