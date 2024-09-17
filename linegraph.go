@@ -27,6 +27,17 @@ type att struct {
 	color uint32
 }
 
+type context struct {
+	Graph        graph
+	Subgraph     graph
+	restrictions map[uint64]map[uint64]void
+	path         map[uint64]uint64
+	chosen       map[uint64]void
+	prior        map[uint64]float32
+	calls        uint64
+	depths       map[uint64]uint64
+}
+
 var prior_policy *int
 var recolor_policy *int
 var start_point *int64
@@ -156,7 +167,25 @@ func main() {
 	fmt.Println(len(G), len(S))
 	colorDist(G)
 	colorDist(S)
-	// ordering := ReadOrdering(fmt.Sprintf("inputs/ordering_%v_%v.json", i, j))
+
+	prior := make(map[uint64]float32)
+	switch *prior_policy {
+	case 0: //d^2 in S
+		for v := range S {
+			// prior[v] += float32(len(Subgraph[v].neighborhood))
+			for u := range S[v].neighborhood {
+				prior[v] += float32(len(S[u].neighborhood))
+			}
+		}
+	case 1: //d^2 in G
+		for v := range G {
+			// prior[v] += float32(len(Graph[v].neighborhood))
+			for u := range G[v].neighborhood {
+				prior[v] += float32(len(G[u].neighborhood))
+			}
+		}
+	}
+
 	start := time.Now()
 	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
 
@@ -165,7 +194,12 @@ func main() {
 	// } else {
 	// 	FindAllSubgraphPathgraph(G,S,[]uint64{uint64(*start_point)},"bla")
 	// }
-	var matches uint64 = IncompleteFindAll(G, S, uint64(num_errors))
+	var matches uint64
+	if num_errors == 0 {
+		matches = FindAll(G, S, prior)
+	} else {
+		matches = IncompleteFindAll(G, S, uint64(num_errors), prior)
+	}
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
@@ -232,28 +266,10 @@ func graphSubset(Graph graph, subset map[uint64]void) graph {
 	return cpy
 }
 
-func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64) uint64 {
+func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, prior map[uint64]float32) uint64 {
 	m := make(map[uint64]void)
 	for v := range Subgraph {
 		m[v] = void{}
-	}
-
-	prior := make(map[uint64]float32)
-	switch *prior_policy {
-	case 0: //d^2 in S
-		for v := range Subgraph {
-			// prior[v] += float32(len(Subgraph[v].neighborhood))
-			for u := range Subgraph[v].neighborhood {
-				prior[v] += float32(len(Subgraph[u].neighborhood))
-			}
-		}
-	case 1: //d^2 in G
-		for v := range Graph {
-			// prior[v] += float32(len(Graph[v].neighborhood))
-			for u := range Graph[v].neighborhood {
-				prior[v] += float32(len(Graph[u].neighborhood))
-			}
-		}
 	}
 	var ret uint64 = 0
 	ret += IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), prior)
@@ -417,7 +433,7 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 		defer func() { restrictions[v_s] = self_rest }()
 	}
 
-	new_v_s := IncompleteChooseNext(restrictions, chosen, Subgraph, prior)
+	new_v_s := ChooseNext(restrictions, chosen, Subgraph, prior)
 	fmt.Println("depth", len(chosen), "target size", len(restrictions[new_v_s]), "open", len(restrictions), "skips", len(chosen)-len(path))
 
 	// cpy := deepCopy(restrictions[new_v_s])
@@ -436,7 +452,7 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 	return ret
 }
 
-func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
+func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
 	//we want the max number of errors, but also min length
 	max_score := float32(0)
 	idx := ^uint64(0)
@@ -452,7 +468,7 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 			if len(restrictions[u]) <= 1 {
 				return u
 			}
-			score := RestrictionScore(restrictions, prior, u, len(chosen))
+			score := RestrictionScore(restrictions, prior, u)
 			if score > max_score {
 				max_score = score
 				idx = u
@@ -469,7 +485,7 @@ func IncompleteChooseNext(restrictions map[uint64]map[uint64]uint64, chosen map[
 	return idx
 }
 
-func RestrictionScore(rest map[uint64]map[uint64]uint64, prior map[uint64]float32, u uint64, depth int) float32 {
+func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]float32, u uint64) float32 {
 	switch *prior_policy {
 	case 0:
 		return prior[u]
@@ -497,25 +513,25 @@ func IncompleteReverseRestrictions(restrictions map[uint64]map[uint64]uint64, in
 	}
 }
 
-func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fname string) uint64 {
+func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
 	// t := time.Now()
 	// f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
-	f, err := os.Create("dat/" + fname + ".txt")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	start_time := time.Now()
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[ordering[0]].attribute.color {
+		if Graph[u].attribute.color == Subgraph[uint64(*start_point)].attribute.color {
 			wg.Add(1)
 			go func(u uint64) {
-				ret := RecursionSearch(Graph, Subgraph, u, ordering[0], make(map[uint64]map[uint64]void, len(Subgraph)),
-					make(map[uint64]uint64), make(map[uint64]void), f, ordering)
+				context := context{Graph: Graph,
+					Subgraph:     Subgraph,
+					restrictions: make(map[uint64]map[uint64]void, len(Subgraph)),
+					path:         make(map[uint64]uint64),
+					chosen:       make(map[uint64]void),
+					prior:        prior,
+					calls:        0,
+					depths:       make(map[uint64]uint64)}
+				ret := RecursionSearch(&context, u, uint64(*start_point))
 
-				fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
@@ -528,115 +544,113 @@ func FindAllSubgraphPathgraph(Graph graph, Subgraph graph, ordering []uint64, fn
 	return ops.Load()
 }
 
-func RecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]map[uint64]void, path map[uint64]uint64, chosen map[uint64]void, file *os.File, ordering []uint64) int {
-	if _, ok := path[v_g]; ok {
+func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
+	context.calls++
+	if context.depths != nil {
+		if _, ok := context.depths[uint64(len(context.chosen))]; !ok {
+			context.depths[uint64(len(context.chosen))] = context.calls
+		}
+		if len(context.Subgraph) == (len(context.path) + 1) {
+			depth_file.WriteString(fmt.Sprintf("%v\n", context.depths))
+			context.depths = nil
+		}
+	}
+	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
-	if len(Subgraph) == (len(path) + 1) {
-		path[v_g] = v_s
-		if file != nil {
-			file.WriteString(fmt.Sprintf("%v\n", path))
-		}
-		delete(path, v_g)
+	if len(context.Subgraph) == (len(context.path) + 1) {
+		context.path[v_g] = v_s
+		output_file.WriteString(fmt.Sprintf("%v\n", context.path))
+		delete(context.path, v_g)
 		return 1
 	}
 	ret := 0
-	path[v_g] = v_s
-	defer delete(path, v_g)
-	chosen[v_s] = void{}
-	defer delete(chosen, v_s)
+	context.path[v_g] = v_s
+	defer delete(context.path, v_g)
+	context.chosen[v_s] = void{}
+	defer delete(context.chosen, v_s)
 
-	self_list := restrictions[v_s]
-	delete(restrictions, v_s)
-	inverse_restrictions, empty := UpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen)
+	self_list := context.restrictions[v_s]
+	delete(context.restrictions, v_s)
+	inverse_restrictions, empty := UpdateRestrictions(context, v_g, v_s)
 	inverse_restrictions[v_s] = self_list
 	if !empty {
-		if len(path) < len(ordering) {
-			targets := []uint64{}
-			new_v_s := uint64(0)
-			new_v_s = ordering[len(path)]
-			for u_instance := range restrictions[new_v_s] {
-				targets = append(targets, u_instance)
-			}
-			fmt.Println("targets size", len(targets), "depth", len(path))
-			for i := 0; i < len(targets); i++ {
-				ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen, file, ordering)
-			}
-		} else {
-			ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, chosen, ordering, file)
+		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior)
+		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
+		for u_instance := range context.restrictions[new_v_s] {
+			ret += RecursionSearch(context, u_instance, new_v_s)
 		}
+		// ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, chosen)
 	}
 	for u := range inverse_restrictions {
 		if _, ok := inverse_restrictions[u][^uint64(0)]; ok {
-			delete(restrictions, u)
+			delete(context.restrictions, u)
 		} else {
 			for u_instance := range inverse_restrictions[u] {
-				if restrictions[u] == nil {
-					restrictions[u] = make(map[uint64]void)
+				if context.restrictions[u] == nil {
+					context.restrictions[u] = make(map[uint64]void)
 				}
-				restrictions[u][u_instance] = void{}
+				context.restrictions[u][u_instance] = void{}
 			}
 		}
 	}
 	return ret
 }
 
-func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
-	path map[uint64]uint64, chosen map[uint64]void, ordering []uint64, file *os.File) int {
-	ret := 0
-	best_length := ^uint64(0)
-	targets := []uint64{}
-	new_v_s := uint64(0)
-	for t := range restrictions {
-		if uint64(len(restrictions[t])) < best_length {
-			new_v_s = t
-			best_length = uint64(len(restrictions[t]))
-		}
-		if best_length <= 1 {
-			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s, "short skip")
-			new_v_g := uint64(0)
-			for v := range restrictions[new_v_s] {
-				new_v_g = v
-			}
-			ret += RecursionSearch(Graph, Subgraph, new_v_g, new_v_s, restrictions, path, chosen, file, ordering)
-			return ret
-		}
-	}
-	for u_instance := range restrictions[new_v_s] {
-		targets = append(targets, u_instance)
-	}
-	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
-	for i := 0; i < len(targets); i++ {
-		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen, file, ordering)
-	}
-	return ret
-}
+// func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
+// 	path map[uint64]uint64, chosen map[uint64]void, ordering []uint64, file *os.File) int {
+// 	ret := 0
+// 	best_length := ^uint64(0)
+// 	targets := []uint64{}
+// 	new_v_s := uint64(0)
+// 	for t := range restrictions {
+// 		if uint64(len(restrictions[t])) < best_length {
+// 			new_v_s = t
+// 			best_length = uint64(len(restrictions[t]))
+// 		}
+// 		if best_length <= 1 {
+// 			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s, "short skip")
+// 			new_v_g := uint64(0)
+// 			for v := range restrictions[new_v_s] {
+// 				new_v_g = v
+// 			}
+// 			ret += RecursionSearch(Graph, Subgraph, new_v_g, new_v_s, restrictions, path, chosen)
+// 			return ret
+// 		}
+// 	}
+// 	for u_instance := range restrictions[new_v_s] {
+// 		targets = append(targets, u_instance)
+// 	}
+// 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
+// 	for i := 0; i < len(targets); i++ {
+// 		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen)
+// 	}
+// 	return ret
+// }
 
-func UpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]map[uint64]void, chosen map[uint64]void) (map[uint64]map[uint64]void, bool) {
+func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]map[uint64]void, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint64]map[uint64]void)
-	for u := range S[v_s].neighborhood {
-		if _, ok := chosen[u]; !ok {
-			if _, ok := restrictions[u]; !ok {
-				restrictions[u] = ColoredNeighborhood(G, v_g, S[u].attribute.color)
+	for u := range context.Subgraph[v_s].neighborhood {
+		if _, ok := context.chosen[u]; !ok {
+			if _, ok := context.restrictions[u]; !ok {
+				context.restrictions[u] = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
 				inverse_restrictions[u] = make(map[uint64]void)
 				inverse_restrictions[u][^uint64(0)] = void{}
 			} else {
 				// _, ok := G[v_g].neighborhood[u_instance]
-				for u_instance := range restrictions[u] {
-					if _, ok := G[v_g].neighborhood[u_instance]; !ok {
+				for u_instance := range context.restrictions[u] {
+					if _, ok := context.Graph[v_g].neighborhood[u_instance]; !ok {
 						if inverse_restrictions[u] == nil {
 							inverse_restrictions[u] = map[uint64]void{}
 						}
 						inverse_restrictions[u][u_instance] = void{}
-						delete(restrictions[u], u_instance)
+						delete(context.restrictions[u], u_instance)
 					}
 				}
 
 			}
-			if len(restrictions[u]) == 0 {
+			if len(context.restrictions[u]) == 0 {
 				empty = true
 			}
 		}
