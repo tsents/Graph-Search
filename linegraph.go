@@ -31,6 +31,7 @@ var prior_policy *int
 var recolor_policy *int
 var start_point *int64
 var output_file *os.File
+var depth_file *os.File
 
 // var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
 
@@ -49,6 +50,7 @@ func main() {
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
 	start_point = flag.Int64("start", 1, "the starting point of the search")
+	depth_log := flag.String("depth", "", "log the deapth over time")
 
 	flag.Parse()
 
@@ -84,6 +86,13 @@ func main() {
 		panic(err)
 	}
 	defer output_file.Close()
+
+	if *depth_log != "" {
+		depth_file, err = os.Create(*depth_log)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	gra_fname := flag.Args()[0]
 	num_errors := *cmd_error
@@ -291,8 +300,13 @@ func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold 
 			Graph[u].attribute.color == ^uint32(0) || Subgraph[root].attribute.color == ^uint32(0) {
 			wg.Add(1)
 			go func(u uint64) {
+				var depths map[uint64]uint64 = nil
+				if depth_file != nil {
+					depths = make(map[uint64]uint64)
+				}
+				fmt.Println("start")
 				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
-					make(map[uint64]uint64), deepCopy(ignore), threshold, prior)
+					make(map[uint64]uint64), deepCopy(ignore), threshold, prior, 0, depths)
 
 				// fmt.Println("done run", u, time.Since(start_time))
 				ops.Add(uint64(ret))
@@ -361,9 +375,22 @@ func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold ui
 	}
 }
 
+// Graph,Subgraph,v_g,v_s,restrictions,path,chosen,threshold and prior are the context
+// calls and depths are debug only
 func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
 	restrictions map[uint64]map[uint64]uint64, path map[uint64]uint64,
-	chosen map[uint64]void, threshold uint64, prior map[uint64]float32) int {
+	chosen map[uint64]void, threshold uint64, prior map[uint64]float32, calls uint64, depths map[uint64]uint64) int {
+	if depths != nil {
+		calls += 1
+		if _, ok := depths[uint64(len(chosen))]; !ok {
+			depths[uint64(len(chosen))] = calls
+		}
+		if len(Subgraph) <= (len(chosen) + 1) {
+			depth_file.WriteString(fmt.Sprintf("%v\n", depths))
+			depths = nil
+		}
+	}
+
 	if _, ok := path[v_g]; ok {
 		return 0
 	}
@@ -396,14 +423,14 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 	// cpy := deepCopy(restrictions[new_v_s])
 	for target := range restrictions[new_v_s] {
 		if restrictions[new_v_s][target] <= threshold {
-			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], prior)
+			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], prior, calls+1, depths)
 		}
 	}
 	//skip call!
 	// fmt.Println("skip call")
 	skip_deg := uint64(len(Subgraph[new_v_s].neighborhood))
 	if skip_deg <= threshold {
-		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint64(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, prior)
+		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint64(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, prior, calls+1, depths)
 	}
 
 	return ret
