@@ -518,18 +518,36 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	var ops atomic.Uint64
 	// t := time.Now()
 	// f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	to_track := []*map[uint64]uint64{}
+	go func() {
+		for sig := range c {
+			// sig is a ^C (interrupt), handle it
+			if sig == os.Interrupt {
+				for i := 0; i < len(to_track); i++ {
+					depth_file.WriteString(fmt.Sprintf("%v\n", *to_track[i]))
+				}
+				pprof.StopCPUProfile()
+				os.Exit(0)
+			}
+		}
+	}()
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[uint64(*start_point)].attribute.color {
 			wg.Add(1)
+			depths := make(map[uint64]uint64)
+			to_track = append(to_track, &depths)
+			context := context{Graph: Graph,
+				Subgraph:     Subgraph,
+				restrictions: make(map[uint64]map[uint64]void, len(Subgraph)),
+				path:         make(map[uint64]uint64),
+				chosen:       make(map[uint64]void),
+				prior:        prior,
+				calls:        0,
+				depths:       depths}
 			go func(u uint64) {
-				context := context{Graph: Graph,
-					Subgraph:     Subgraph,
-					restrictions: make(map[uint64]map[uint64]void, len(Subgraph)),
-					path:         make(map[uint64]uint64),
-					chosen:       make(map[uint64]void),
-					prior:        prior,
-					calls:        0,
-					depths:       make(map[uint64]uint64)}
 				ret := RecursionSearch(&context, u, uint64(*start_point))
 
 				ops.Add(uint64(ret))
