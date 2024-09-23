@@ -35,7 +35,13 @@ type context struct {
 	chosen       map[uint64]void
 	prior        map[uint64]float32
 	calls        uint64
-	depths       map[uint64]uint64
+	start_time   time.Time
+	depths       map[uint64]metric
+}
+
+type metric struct {
+	time  time.Duration
+	calls uint64
 }
 
 var prior_policy *int
@@ -43,6 +49,11 @@ var recolor_policy *int
 var start_point *int64
 var output_file *os.File
 var depth_file *os.File
+var branching_file *os.File
+var branching []float32
+var branching_counter []float32
+var crit_log *int
+var crit_file *os.File
 
 // var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
 
@@ -62,6 +73,9 @@ func main() {
 	profile := flag.Bool("prof", false, "profile the program")
 	start_point = flag.Int64("start", 1, "the starting point of the search")
 	depth_log := flag.String("depth", "", "log the deapth over time")
+	branching_log := flag.String("branching", "", "log the branching factor over time")
+	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
+	crit_fname := flag.String("critfile", "", "the file for the crit option")
 
 	flag.Parse()
 
@@ -100,6 +114,20 @@ func main() {
 
 	if *depth_log != "" {
 		depth_file, err = os.Create(*depth_log)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if *crit_fname != "" {
+		crit_file, err = os.Create(*crit_fname)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if *branching_log != "" {
+		branching_file, err = os.Create(*branching_log)
 		if err != nil {
 			panic(err)
 		}
@@ -176,6 +204,7 @@ func main() {
 			for u := range S[v].neighborhood {
 				prior[v] += float32(len(S[u].neighborhood))
 			}
+
 		}
 	case 1: //d^2 in G
 		for v := range G {
@@ -211,6 +240,24 @@ func colorDist(Graph graph) {
 		bins[v.attribute.color] += 1
 	}
 	fmt.Println(bins)
+}
+
+func degDist(Graph graph, inv_subset map[uint64]void, file *os.File) {
+	if inv_subset == nil {
+		bins := make(map[uint64]uint64)
+		for _, v := range Graph {
+			bins[uint64(len(v.neighborhood))] += 1
+		}
+		file.WriteString(fmt.Sprintf("%v\n", bins))
+		return
+	}
+	bins := make(map[uint64]uint64)
+	for v := range Graph {
+		if _, ok := inv_subset[v]; !ok {
+			bins[uint64(len(Graph[v].neighborhood))] += 1
+		}
+	}
+	file.WriteString(fmt.Sprintf("%v\n", bins))
 }
 
 func reduceGraph(Graph graph, size int) graph {
@@ -521,14 +568,17 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	to_track := []*map[uint64]uint64{}
+	to_track := []*map[uint64]metric{}
+	branching = make([]float32, len(Subgraph))
+	branching_counter = make([]float32, len(Subgraph))
 	go func() {
 		for sig := range c {
 			// sig is a ^C (interrupt), handle it
 			if sig == os.Interrupt {
 				for i := 0; i < len(to_track); i++ {
-					depth_file.WriteString(fmt.Sprintf("%v\n", *to_track[i]))
+					printDepths(*to_track[i], depth_file)
 				}
+				printBranching(branching, branching_file)
 				pprof.StopCPUProfile()
 				os.Exit(0)
 			}
@@ -537,7 +587,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[uint64(*start_point)].attribute.color {
 			wg.Add(1)
-			depths := make(map[uint64]uint64)
+			depths := make(map[uint64]metric)
 			to_track = append(to_track, &depths)
 			context := context{Graph: Graph,
 				Subgraph:     Subgraph,
@@ -546,10 +596,10 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 				chosen:       make(map[uint64]void),
 				prior:        prior,
 				calls:        0,
+				start_time:   time.Now(),
 				depths:       depths}
 			go func(u uint64) {
 				ret := RecursionSearch(&context, u, uint64(*start_point))
-
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
@@ -559,6 +609,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 		}
 	}
 	wg.Wait()
+	printBranching(branching, branching_file)
 	return ops.Load()
 }
 
@@ -566,13 +617,20 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	context.calls++
 	if context.depths != nil {
 		if _, ok := context.depths[uint64(len(context.chosen))]; !ok {
-			context.depths[uint64(len(context.chosen))] = context.calls
+			context.depths[uint64(len(context.chosen))] = metric{time.Since(context.start_time), context.calls}
 		}
 		if len(context.Subgraph) == (len(context.path) + 1) {
-			depth_file.WriteString(fmt.Sprintf("%v\n", context.depths))
+			printDepths(context.depths, depth_file)
+			// depth_file.WriteString(fmt.Sprintf("%v\n", context.depths))
 			context.depths = nil
 		}
 	}
+
+	if len(context.chosen) == *crit_log {
+		degDist(context.Subgraph, context.chosen, crit_file)
+		*crit_log = -1
+	}
+
 	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
@@ -595,6 +653,10 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	if !empty {
 		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior)
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
+
+		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
+		branching_counter[len(context.chosen)]++
+
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
 		}
@@ -776,4 +838,19 @@ func ConnectedComponents(Graph graph, subset map[uint64]void) []map[uint64]void 
 	}
 
 	return components
+}
+
+func printDepths(depths map[uint64]metric, file *os.File) {
+	file.WriteString("Depth,Time,Calls\n")
+	for point := range depths { //print as csv instead!
+		file.WriteString(fmt.Sprintf("%v,%v,%v\n", point, depths[point].time, depths[point].calls))
+	}
+}
+
+func printBranching(branching []float32, file *os.File) {
+	file.WriteString("Depth,BranchingFactor\n")
+	for i := len(branching) - 1; i > 0; i-- { //print as csv instead!
+		branching[i] /= branching_counter[i]
+		file.WriteString(fmt.Sprintf("%v,%v\n", i, branching[i]))
+	}
 }
