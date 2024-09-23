@@ -52,6 +52,8 @@ var depth_file *os.File
 var branching_file *os.File
 var branching []float32
 var branching_counter []float32
+var hair_counter []uint64
+var hair_file *os.File
 var crit_log *int
 var crit_file *os.File
 
@@ -72,10 +74,11 @@ func main() {
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
 	start_point = flag.Int64("start", 1, "the starting point of the search")
-	depth_log := flag.String("depth", "", "log the deapth over time")
-	branching_log := flag.String("branching", "", "log the branching factor over time")
+	depth_log := flag.String("depth", "", "fname to log the deapth over time")
+	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
 	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
-	crit_fname := flag.String("critfile", "", "the file for the crit option")
+	crit_fname := flag.String("critfile", "", "fname for the file for the crit option")
+	hair_log := flag.String("hair", "", "fname to log the number of vertecies with small degree that are left to choose vs algorithm depth")
 
 	flag.Parse()
 
@@ -128,6 +131,13 @@ func main() {
 
 	if *branching_log != "" {
 		branching_file, err = os.Create(*branching_log)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if *hair_log != "" {
+		hair_file, err = os.Create(*hair_log)
 		if err != nil {
 			panic(err)
 		}
@@ -566,10 +576,12 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	// t := time.Now()
 	// f, err := os.Create("dat/" + t.Format("2006-01-02 15:04:05.999999") + ".txt")
 
+	//debug stuff
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	to_track := []*map[uint64]metric{}
 	branching = make([]float32, len(Subgraph))
+	hair_counter = make([]uint64, len(Subgraph))
 	branching_counter = make([]float32, len(Subgraph))
 	go func() {
 		for sig := range c {
@@ -579,11 +591,14 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 					printDepths(*to_track[i], depth_file)
 				}
 				printBranching(branching, branching_file)
+				hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 				pprof.StopCPUProfile()
 				os.Exit(0)
 			}
 		}
 	}()
+
+	//functionality
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[uint64(*start_point)].attribute.color {
 			wg.Add(1)
@@ -610,10 +625,12 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	}
 	wg.Wait()
 	printBranching(branching, branching_file)
+	hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 	return ops.Load()
 }
 
 func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
+	//debug
 	context.calls++
 	if context.depths != nil {
 		if _, ok := context.depths[uint64(len(context.chosen))]; !ok {
@@ -625,12 +642,20 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 			context.depths = nil
 		}
 	}
-
 	if len(context.chosen) == *crit_log {
 		degDist(context.Subgraph, context.chosen, crit_file)
 		*crit_log = -1
 	}
 
+	if hair_counter[len(context.chosen)] == 0 {
+		for v := range context.chosen {
+			if len(context.Subgraph[v].neighborhood) < 4 {
+				hair_counter[len(context.chosen)]++
+			}
+		}
+	}
+
+	//functionality
 	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
@@ -652,11 +677,13 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior)
-		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
 
+		//debug
+		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
 		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
 		branching_counter[len(context.chosen)]++
 
+		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
 		}
