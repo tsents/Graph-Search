@@ -5,5 +5,7 @@ python tools/__pycache__
 *.pprof
 subgraph_isomorphism
 *.csv
-inputs/*
+inputs/
 important outputs/
+ground_truth/
+output/
