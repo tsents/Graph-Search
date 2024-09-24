@@ -581,7 +581,11 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	signal.Notify(c, os.Interrupt)
 	to_track := []*map[uint64]metric{}
 	branching = make([]float32, len(Subgraph))
-	hair_counter = make([]uint64, len(Subgraph))
+	if hair_file == nil {
+		hair_counter = nil
+	} else {
+		hair_counter = make([]uint64, len(Subgraph))
+	}
 	branching_counter = make([]float32, len(Subgraph))
 	go func() {
 		for sig := range c {
@@ -647,7 +651,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		*crit_log = -1
 	}
 
-	if hair_counter[len(context.chosen)] == 0 {
+	if hair_counter != nil && hair_counter[len(context.chosen)] == 0 {
 		for v := range context.chosen {
 			if len(context.Subgraph[v].neighborhood) < 4 {
 				hair_counter[len(context.chosen)]++
@@ -738,31 +742,52 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]map[uint64]void, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint64]map[uint64]void)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	for u := range context.Subgraph[v_s].neighborhood {
-		if _, ok := context.chosen[u]; !ok {
-			if _, ok := context.restrictions[u]; !ok {
-				context.restrictions[u] = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
-				inverse_restrictions[u] = make(map[uint64]void)
-				inverse_restrictions[u][^uint64(0)] = void{}
-			} else {
-				// _, ok := G[v_g].neighborhood[u_instance]
-				for u_instance := range context.restrictions[u] {
-					if _, ok := context.Graph[v_g].neighborhood[u_instance]; !ok {
-						if inverse_restrictions[u] == nil {
-							inverse_restrictions[u] = map[uint64]void{}
-						}
-						inverse_restrictions[u][u_instance] = void{}
-						delete(context.restrictions[u], u_instance)
-					}
-				}
-
+		wg.Add(1)
+		go func() {
+			if _, ok := context.chosen[u]; ok {
+				wg.Done()
+				return
 			}
-			if len(context.restrictions[u]) == 0 {
+			mu.Lock()
+			var single_rest map[uint64]void = context.restrictions[u]
+			var single_inverse map[uint64]void = inverse_restrictions[u]
+			mu.Unlock()
+
+			SingleUpdate(context, u, v_g, &single_inverse, &single_rest)
+			mu.Lock()
+			context.restrictions[u] = single_rest
+			inverse_restrictions[u] = single_inverse
+			mu.Unlock()
+			if len(single_rest) == 0 {
 				empty = true
 			}
-		}
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 	return inverse_restrictions, empty
+}
+func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
+	if *single_rest == nil {
+		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
+		*single_inverse = make(map[uint64]void)
+		(*single_inverse)[^uint64(0)] = void{}
+	} else {
+		// _, ok := G[v_g].neighborhood[u_instance]
+		for u_instance := range *single_rest {
+			if _, ok := context.Graph[v_g].neighborhood[u_instance]; !ok {
+				if *single_inverse == nil {
+					*single_inverse = make(map[uint64]void)
+				}
+				(*single_inverse)[u_instance] = void{}
+				delete(*single_rest, u_instance)
+			}
+		}
+
+	}
 }
 
 func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
