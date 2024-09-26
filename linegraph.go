@@ -558,9 +558,9 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 	case 2:
 		return 1024 / float32(len(rest[u]))
 	case 3:
-		return prior[u]
-	case 4:
 		return rand.Float32()
+	case 4:
+		return prior[u]
 	}
 	return 0
 }
