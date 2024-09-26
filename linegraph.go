@@ -210,14 +210,14 @@ func main() {
 	switch *prior_policy {
 	case 0: //d^2 in S
 		for v := range S {
-			// prior[v] += float32(len(Subgraph[v].neighborhood))
+			prior[v] += float32(len(S[v].neighborhood))
 			for u := range S[v].neighborhood {
 				prior[v] += float32(len(S[u].neighborhood))
 			}
 		}
 	case 1: //d^2 in G
 		for v := range G {
-			// prior[v] += float32(len(Graph[v].neighborhood))
+			prior[v] += float32(len(G[v].neighborhood))
 			for u := range G[v].neighborhood {
 				prior[v] += float32(len(G[u].neighborhood))
 			}
