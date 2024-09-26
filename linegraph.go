@@ -61,14 +61,14 @@ var crit_file *os.File
 
 func main() {
 	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
-	debug.SetMaxStack(2 * 128 * 1024 * 1024)      //GBit
+	debug.SetMaxStack(10 * 128 * 1024 * 1024)     //GBit
 	debug.SetMemoryLimit(200 * 128 * 1024 * 1024) //GBit
 
 	out_fname := flag.String("out", "dat/output.txt", "output location")
 	cmd_error := flag.Int("err", 0, "number of errors in the search\ndefault is exact isomorphism (default 0)")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
-	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on S=0,G=1 or Constant=2")
+	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
 	print_subset := flag.Bool("subout", false, "if subset, output it at that folder")
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
@@ -214,7 +214,6 @@ func main() {
 			for u := range S[v].neighborhood {
 				prior[v] += float32(len(S[u].neighborhood))
 			}
-
 		}
 	case 1: //d^2 in G
 		for v := range G {
@@ -222,6 +221,10 @@ func main() {
 			for u := range G[v].neighborhood {
 				prior[v] += float32(len(G[u].neighborhood))
 			}
+		}
+	case 4: //d in S
+		for v := range S {
+			prior[v] = float32(len(S[v].neighborhood))
 		}
 	}
 
@@ -551,9 +554,13 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 		for u_instance := range rest[u] {
 			score += prior[u_instance]
 		}
-		return score
+		return 1 / score
 	case 2:
 		return 1024 / float32(len(rest[u]))
+	case 3:
+		return prior[u]
+	case 4:
+		return rand.Float32()
 	}
 	return 0
 }
