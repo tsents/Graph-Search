@@ -783,13 +783,20 @@ func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inv
 
 		//directed
 		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
-			src := ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
-			maps.Copy(*single_rest, src)
-
+			*single_rest := ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
 		}
 		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
-			src := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
-			maps.Copy(*single_rest, src)
+			if _, ok := context.Subgraph[v_s].neighborhood_out[u]; !ok {
+				*single_rest := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
+				return
+			}
+			intersection := make(map[uint64]void)
+			for key := range *single_rest {
+				if _, ok := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)[key]; !ok {
+					intersection[key] = void{}
+				}
+			}
+			*single_rest = intersection
 		}
 		return
 	}
