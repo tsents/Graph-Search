@@ -545,6 +545,22 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 	return idx
 }
 
+func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
+	if *prior_policy == 2 || *prior_policy == 1 {
+		return uint64(*start_point)
+	}
+	max_score := float32(0)
+	idx := uint64(*start_point)
+	for u := range Subgraph {
+		score := RestrictionScore[uint64](nil, prior, u)
+		if score > max_score {
+			max_score = score
+			idx = u
+		}
+	}
+	return idx
+}
+
 func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]float32, u uint64) float32 {
 	switch *prior_policy {
 	case 0:
@@ -610,8 +626,9 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	}()
 
 	//functionality
+	v_0 := ChooseStart(Subgraph, prior)
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[uint64(*start_point)].attribute.color {
+		if Graph[u].attribute.color == Subgraph[uint64(v_0)].attribute.color {
 			wg.Add(1)
 			depths := make(map[uint64]metric)
 			to_track = append(to_track, &depths)
@@ -625,7 +642,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 				start_time:   time.Now(),
 				depths:       depths}
 			go func(u uint64) {
-				ret := RecursionSearch(&context, u, uint64(*start_point))
+				ret := RecursionSearch(&context, u, uint64(v_0))
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
