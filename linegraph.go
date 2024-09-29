@@ -11,6 +11,7 @@ import (
 	"runtime/pprof"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -52,6 +53,7 @@ var depth_file *os.File
 var branching_file *os.File
 var branching []float32
 var branching_counter []float32
+var branching_mu sync.Mutex
 var hair_counter []uint64
 var hair_file *os.File
 var crit_log *int
@@ -601,7 +603,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 
 	//debug stuff
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, syscall.SIGINT)
 	to_track := []*map[uint64]metric{}
 	branching = make([]float32, len(Subgraph))
 	if hair_file == nil {
@@ -613,10 +615,11 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	go func() {
 		for sig := range c {
 			// sig is a ^C (interrupt), handle it
-			if sig == os.Interrupt {
+			if sig == os.Interrupt || sig == syscall.SIGINT {
 				for i := 0; i < len(to_track); i++ {
 					printDepths(*to_track[i], depth_file)
 				}
+				fmt.Println("printing at interrupt")
 				printBranching(branching, branching_file)
 				hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 				pprof.StopCPUProfile()
@@ -708,9 +711,10 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 		//debug
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
+		branching_mu.Lock()
 		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
 		branching_counter[len(context.chosen)]++
-
+		branching_mu.Unlock()
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
