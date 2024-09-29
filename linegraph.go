@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -20,8 +21,10 @@ type void struct{}
 type graph map[uint64]vertex
 
 type vertex struct {
-	attribute    att
-	neighborhood map[uint64]void
+	attribute        att
+	neighborhood     map[uint64]void
+	neighborhood_in  map[uint64]void
+	neighborhood_out map[uint64]void
 }
 
 type att struct {
@@ -58,6 +61,7 @@ var hair_counter []uint64
 var hair_file *os.File
 var crit_log *int
 var crit_file *os.File
+var directed *bool
 
 // var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
 
@@ -81,6 +85,7 @@ func main() {
 	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
 	crit_fname := flag.String("critfile", "", "fname for the file for the crit option")
 	hair_log := flag.String("hair", "", "fname to log the number of vertecies with small degree that are left to choose vs algorithm depth")
+	directed = flag.Bool("directed", false, "change to directed graphs, default is automaticly undirected")
 
 	flag.Parse()
 
@@ -323,7 +328,7 @@ func graphSubset(Graph graph, subset map[uint64]void) graph {
 				new_neighborhood[u] = void{}
 			}
 		}
-		cpy[v] = vertex{Graph[v].attribute, new_neighborhood}
+		cpy[v] = vertex{Graph[v].attribute, new_neighborhood, nil, nil}
 	}
 	return cpy
 }
@@ -736,37 +741,6 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	return ret
 }
 
-// func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
-// 	path map[uint64]uint64, chosen map[uint64]void, ordering []uint64, file *os.File) int {
-// 	ret := 0
-// 	best_length := ^uint64(0)
-// 	targets := []uint64{}
-// 	new_v_s := uint64(0)
-// 	for t := range restrictions {
-// 		if uint64(len(restrictions[t])) < best_length {
-// 			new_v_s = t
-// 			best_length = uint64(len(restrictions[t]))
-// 		}
-// 		if best_length <= 1 {
-// 			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s, "short skip")
-// 			new_v_g := uint64(0)
-// 			for v := range restrictions[new_v_s] {
-// 				new_v_g = v
-// 			}
-// 			ret += RecursionSearch(Graph, Subgraph, new_v_g, new_v_s, restrictions, path, chosen)
-// 			return ret
-// 		}
-// 	}
-// 	for u_instance := range restrictions[new_v_s] {
-// 		targets = append(targets, u_instance)
-// 	}
-// 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
-// 	for i := 0; i < len(targets); i++ {
-// 		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen)
-// 	}
-// 	return ret
-// }
-
 func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]map[uint64]void, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint64]map[uint64]void)
@@ -784,7 +758,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 			var single_inverse map[uint64]void = inverse_restrictions[u]
 			mu.Unlock()
 
-			SingleUpdate(context, u, v_g, &single_inverse, &single_rest)
+			SingleUpdate(context, u, v_s, v_g, &single_inverse, &single_rest)
 			mu.Lock()
 			context.restrictions[u] = single_rest
 			inverse_restrictions[u] = single_inverse
@@ -798,13 +772,29 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 	wg.Wait()
 	return inverse_restrictions, empty
 }
-func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
+func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
-	} else {
-		// _, ok := G[v_g].neighborhood[u_instance]
+		if !*directed {
+			*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			return
+		}
+
+		//directed
+		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
+			src := ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			maps.Copy(*single_rest, src)
+
+		}
+		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
+			src := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			maps.Copy(*single_rest, src)
+		}
+		return
+	}
+	// _, ok := G[v_g].neighborhood[u_instance]
+	if !*directed {
 		for u_instance := range *single_rest {
 			if _, ok := context.Graph[v_g].neighborhood[u_instance]; !ok {
 				if *single_inverse == nil {
@@ -814,13 +804,55 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 				delete(*single_rest, u_instance)
 			}
 		}
-
+		return
+	}
+	if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
+		for u_instance := range *single_rest {
+			if _, ok := context.Graph[v_g].neighborhood_out[u_instance]; !ok {
+				if *single_inverse == nil {
+					*single_inverse = make(map[uint64]void)
+				}
+				(*single_inverse)[u_instance] = void{}
+				delete(*single_rest, u_instance)
+			}
+		}
+	}
+	if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
+		for u_instance := range *single_rest {
+			if _, ok := context.Graph[v_g].neighborhood_in[u_instance]; !ok {
+				if *single_inverse == nil {
+					*single_inverse = make(map[uint64]void)
+				}
+				(*single_inverse)[u_instance] = void{}
+				delete(*single_rest, u_instance)
+			}
+		}
 	}
 }
 
 func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
+		if Graph[v].attribute.color == c {
+			output[v] = void{}
+		}
+	}
+	return output
+}
+
+func ColoredNeighborhoodOut(Graph graph, u uint64, c uint32) map[uint64]void {
+	output := make(map[uint64]void)
+	for v := range Graph[u].neighborhood_out {
+		if Graph[v].attribute.color == c {
+			output[v] = void{}
+		}
+	}
+	return output
+}
+
+func ColoredNeighborhoodIn(Graph graph, u uint64, c uint32) map[uint64]void {
+	output := make(map[uint64]void)
+	for v := range Graph[u].neighborhood_in {
 		if Graph[v].attribute.color == c {
 			output[v] = void{}
 		}
@@ -845,10 +877,10 @@ func (Graph graph) AddVertex(u uint64, c uint32) {
 		return
 	}
 	if *recolor_policy == -1 {
-		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
+		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c},neighborhood_in: map[uint64]void{},neighborhood_out: make(map[uint64]void)}
 		return
 	}
-	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint32(rand.N(*recolor_policy))}}
+	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint32(rand.N(*recolor_policy))},,neighborhood_in: map[uint64]void{},neighborhood_out: make(map[uint64]void)}
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
@@ -861,6 +893,10 @@ func (Graph graph) AddEdge(u uint64, v uint64) {
 	}
 	if _, ok := Graph[v]; !ok {
 		Graph.AddVertex(v, ^uint32(0))
+	}
+	if *directed {
+		Graph[u].neighborhood_out[v] = void{}
+		Graph[v].neighborhood_in[u] = void{}
 	}
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
