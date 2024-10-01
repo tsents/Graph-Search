@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"maps"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -210,8 +209,6 @@ func main() {
 		}
 	}
 	fmt.Println(len(G), len(S))
-	colorDist(G)
-	colorDist(S)
 
 	prior := make(map[uint64]float32)
 	switch *prior_policy {
@@ -695,7 +692,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
-	if len(context.Subgraph) == (len(context.path) + 1) {
+	if len(context.Subgraph) == (len(context.chosen) + 1) {
 		context.path[v_g] = v_s
 		output_file.WriteString(fmt.Sprintf("%v\n", context.path))
 		delete(context.path, v_g)
@@ -716,10 +713,12 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 		//debug
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
-		branching_mu.Lock()
-		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
-		branching_counter[len(context.chosen)]++
-		branching_mu.Unlock()
+		if branching_file != nil {
+			branching_mu.Lock()
+			branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
+			branching_counter[len(context.chosen)]++
+			branching_mu.Unlock()
+		}
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
@@ -783,11 +782,11 @@ func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inv
 
 		//directed
 		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
-			*single_rest := ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			*single_rest = ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
 		}
 		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
 			if _, ok := context.Subgraph[v_s].neighborhood_out[u]; !ok {
-				*single_rest := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
+				*single_rest = ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
 				return
 			}
 			intersection := make(map[uint64]void)
@@ -884,10 +883,10 @@ func (Graph graph) AddVertex(u uint64, c uint32) {
 		return
 	}
 	if *recolor_policy == -1 {
-		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c},neighborhood_in: map[uint64]void{},neighborhood_out: make(map[uint64]void)}
+		Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}, neighborhood_in: map[uint64]void{}, neighborhood_out: make(map[uint64]void)}
 		return
 	}
-	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint32(rand.N(*recolor_policy))},,neighborhood_in: map[uint64]void{},neighborhood_out: make(map[uint64]void)}
+	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: uint32(rand.N(*recolor_policy))}, neighborhood_in: map[uint64]void{}, neighborhood_out: make(map[uint64]void)}
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
