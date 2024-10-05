@@ -14,7 +14,9 @@ def parse_file(filename):
                 row_data = {}
                 for item in dict_items:
                     key, value = item.split(':')
-                    row_data[int(key)] = int(value)
+                    # index = int(np.log2(int(key)))
+                    # row_data[index] = row_data.get(index,0) + value
+                    row_data[int(key)] = value
                 data.append(row_data)
     return data
 
@@ -34,7 +36,7 @@ def create_heatmap(data):
     # heatmap = np.divide(heatmap, row_maxes, where=row_maxes!=0)  # Avoid division by zero
 
     # Plotting the normalized heatmap
-    plt.imshow(heatmap.T, cmap='hot', interpolation='nearest', aspect='auto')
+    plt.imshow(np.log1p(heatmap.T), cmap='hot', interpolation='nearest', aspect='auto')
     plt.colorbar(label='Normalized Count')
     plt.xlabel('Rows')  # Updated label
     plt.ylabel('Columns')  # Updated label
