@@ -58,8 +58,7 @@ var hair_counter []uint64
 var hair_file *os.File
 var crit_log *int
 var crit_file *os.File
-
-// var next_function func(Subgraph graph,rest map[uint64]map[uint64]uint64,u uint64,prior uint64)uint64;
+var deg_file *os.File
 
 func main() {
 	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
@@ -81,6 +80,7 @@ func main() {
 	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
 	crit_fname := flag.String("critfile", "", "fname for the file for the crit option")
 	hair_log := flag.String("hair", "", "fname to log the number of vertecies with small degree that are left to choose vs algorithm depth")
+	degs_log := flag.String("deg", "", "fname to log the degree distribution")
 
 	flag.Parse()
 
@@ -140,6 +140,12 @@ func main() {
 
 	if *hair_log != "" {
 		hair_file, err = os.Create(*hair_log)
+		if err != nil {
+			panic(err)
+		}
+	}
+	if *degs_log != "" {
+		deg_file, err = os.Create(*degs_log)
 		if err != nil {
 			panic(err)
 		}
@@ -204,6 +210,7 @@ func main() {
 			sub_edges.Close()
 		}
 	}
+	S = Sparsify(S, 0.9)
 	fmt.Println(len(G), len(S))
 	colorDist(G)
 	colorDist(S)
@@ -276,14 +283,35 @@ func degDist(Graph graph, inv_subset map[uint64]void, file *os.File) {
 }
 
 func reduceGraph(Graph graph, size int) graph {
-	m := make(map[uint64]void)
-	for i := range Graph {
-		m[i] = void{}
-	}
 	subset := connectedComponentOfSizeK(Graph, uint64(*start_point), size)
 	return graphSubset(Graph, subset)
 }
 
+func Sparsify(G graph, p float32) graph {
+	total := 0
+	for v := range G {
+		total += len(G[v].neighborhood)
+	}
+	fmt.Println("S total", total)
+
+	mst := G.minimumSpanningTree(uint64(*start_point))
+
+	for u := range G {
+		for v := range G[u].neighborhood {
+			if u > v && rand.Float32() > p { //keep edge at prob 1-p
+				mst.AddEdge(u, v)
+			}
+		}
+	}
+
+	total = 0
+	for v := range mst {
+		total += len(mst[v].neighborhood)
+	}
+	fmt.Println("sparse total", total)
+
+	return mst
+}
 func sizeBFS(Graph graph, node uint64, visited map[uint64]void, component map[uint64]void, k *int) {
 	queue := make(map[uint64]void)
 	for neighbor := range Graph[node].neighborhood {
@@ -679,11 +707,15 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	}
 
 	if hair_counter != nil && hair_counter[len(context.chosen)] == 0 {
-		for v := range context.chosen {
-			if len(context.Subgraph[v].neighborhood) < 4 {
-				hair_counter[len(context.chosen)]++
-			}
+		if hair_counter[len(context.chosen)]%50 == 0 {
+			degDist(context.Subgraph, context.chosen, deg_file)
 		}
+		hair_counter[len(context.chosen)] = 1
+		// for v := range context.chosen {
+		// 	if len(context.Subgraph[v].neighborhood) < 4 {
+		// 		hair_counter[len(context.chosen)]++
+		// 	}
+		// }
 	}
 
 	//functionality
@@ -918,6 +950,30 @@ func ConnectedComponents(Graph graph, subset map[uint64]void) []map[uint64]void 
 	}
 
 	return components
+}
+
+func (g graph) minimumSpanningTree(start uint64) graph {
+	visited := make(map[uint64]bool)
+	mst := make(graph)
+	var dfs func(uint64)
+
+	for v := range g {
+		mst.AddVertex(v, g[v].attribute.color)
+	}
+	dfs = func(v uint64) {
+		visited[v] = true
+
+		for u := range g[v].neighborhood {
+			if !visited[u] {
+				// Add this edge to the MST
+				mst.AddEdge(v, u)
+				dfs(u)
+			}
+		}
+	}
+
+	dfs(start)
+	return mst
 }
 
 func printDepths(depths map[uint64]metric, file *os.File) {
