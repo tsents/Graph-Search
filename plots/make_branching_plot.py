@@ -19,8 +19,6 @@ df4['Depth'] = pd.to_numeric(df4['Depth'])
 # df1['BranchingFactor_Smoothed'] = df1['BranchingFactor'].rolling(window=window_size).mean()
 # df2['BranchingFactor_Smoothed'] = df2['BranchingFactor'].rolling(window=window_size).mean()
 
-sns.set_theme()
-
 # Create a figure with three subplots
 fig, axes = plt.subplots(1, 4, figsize=(15,5))
 

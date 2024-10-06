@@ -210,7 +210,6 @@ func main() {
 			sub_edges.Close()
 		}
 	}
-	S = Sparsify(S, 0.9)
 	fmt.Println(len(G), len(S))
 	colorDist(G)
 	colorDist(S)
@@ -294,7 +293,7 @@ func Sparsify(G graph, p float32) graph {
 	}
 	fmt.Println("S total", total)
 
-	mst := G.minimumSpanningTree(uint64(*start_point))
+	mst := minimumSpanningTree(G, uint64(*start_point))
 
 	for u := range G {
 		for v := range G[u].neighborhood {
@@ -707,15 +706,12 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	}
 
 	if hair_counter != nil && hair_counter[len(context.chosen)] == 0 {
-		if hair_counter[len(context.chosen)]%50 == 0 {
-			degDist(context.Subgraph, context.chosen, deg_file)
+		degDist(context.Subgraph, context.chosen, deg_file)
+		for v := range context.chosen {
+			if len(context.Subgraph[v].neighborhood) < 4 {
+				hair_counter[len(context.chosen)]++
+			}
 		}
-		hair_counter[len(context.chosen)] = 1
-		// for v := range context.chosen {
-		// 	if len(context.Subgraph[v].neighborhood) < 4 {
-		// 		hair_counter[len(context.chosen)]++
-		// 	}
-		// }
 	}
 
 	//functionality
@@ -952,18 +948,18 @@ func ConnectedComponents(Graph graph, subset map[uint64]void) []map[uint64]void 
 	return components
 }
 
-func (g graph) minimumSpanningTree(start uint64) graph {
+func minimumSpanningTree(G graph, start uint64) graph {
 	visited := make(map[uint64]bool)
 	mst := make(graph)
 	var dfs func(uint64)
 
-	for v := range g {
-		mst.AddVertex(v, g[v].attribute.color)
+	for v := range G {
+		mst.AddVertex(v, G[v].attribute.color)
 	}
 	dfs = func(v uint64) {
 		visited[v] = true
 
-		for u := range g[v].neighborhood {
+		for u := range G[v].neighborhood {
 			if !visited[u] {
 				// Add this edge to the MST
 				mst.AddEdge(v, u)
