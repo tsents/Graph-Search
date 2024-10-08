@@ -662,7 +662,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	//functionality
 	v_0 := ChooseStart(Subgraph, prior)
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[v_0].attribute.color && len(Graph[u].neighborhood) >= len(Subgraph[v_0].neighborhood) {
+		if Graph[u].attribute.color == Subgraph[v_0].attribute.color {
 			wg.Add(1)
 			depths := make(map[uint64]metric)
 			to_track = append(to_track, &depths)
@@ -832,7 +832,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 }
 func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
+		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
 	} else {
@@ -853,7 +853,7 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if len(Graph[v].neighborhood) >= deg && Graph[v].attribute.color == c {
+		if Graph[v].attribute.color == c {
 			output[v] = void{}
 		}
 	}
