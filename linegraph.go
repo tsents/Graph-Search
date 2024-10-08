@@ -850,7 +850,7 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
