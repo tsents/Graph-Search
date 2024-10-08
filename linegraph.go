@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -14,6 +15,8 @@ import (
 	"syscall"
 	"time"
 )
+
+var Finf float32 = math.Float32frombits(0x7F800000)
 
 type void struct{}
 
@@ -518,7 +521,7 @@ func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint
 
 func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
 	//we want the max number of errors, but also min length
-	max_score := float32(0)
+	max_score := -Finf //-inf in Float32
 	idx := ^uint64(0)
 	// for u := range restrictions {
 	// 	if _, ok := chosen[u]; !ok {
@@ -553,7 +556,7 @@ func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 	if *prior_policy == 2 || *prior_policy == 1 {
 		return uint64(*start_point)
 	}
-	max_score := float32(0)
+	max_score := -Finf
 	idx := uint64(*start_point)
 	for u := range Subgraph {
 		score := RestrictionScore[uint64](nil, prior, u)
@@ -574,9 +577,9 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 		for u_instance := range rest[u] {
 			score += prior[u_instance]
 		}
-		return 1 / score
+		return -score
 	case 2:
-		return 1024 / float32(len(rest[u]))
+		return float32(-len(rest[u]))
 	case 3:
 		return rand.Float32()
 	case 4:
