@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
 	"runtime"
@@ -35,6 +36,7 @@ type context struct {
 
 var prior_policy *int
 var output_file *os.File
+var Finf float32 = math.Float32frombits(0x7F800000)
 
 func main() {
 	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
@@ -86,7 +88,7 @@ func main() {
 
 func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
 	//we want the max number of errors, but also min length
-	max_score := float32(0)
+	max_score := -Finf //negitive inf for floats
 	idx := ^uint64(0)
 
 	for u := range restrictions {
@@ -117,7 +119,7 @@ func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 			return idx //arbotery
 		}
 	}
-	max_score := float32(0)
+	max_score := -Finf //negitive inf for floats
 	var idx uint64
 	for u := range Subgraph {
 		score := RestrictionScore[uint64](nil, prior, u)
