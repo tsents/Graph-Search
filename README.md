@@ -14,18 +14,16 @@ Testing
 $ go test
 ``
 
-Runs tests on gnps, with very low probability a test would fail (because there are random graphs), thus sometimes rerunning can verify the result.
-
 Running
 
 To run:
 ``
-$ ./output_name i j 
+$ ./output_name -flags dir1 dir2 
 ``
 
-will find subgraph isomorphisms of graphj.json inside graphi.json, given the ordering ordering_i_j.json
+will find subgraph isomorphisms of the graph dir2 inside dir1
 
-Outputs to directory "dat/"
+Default output to directory "dat/"
 
 And expectes inputs to be inside "inputs/"
 
