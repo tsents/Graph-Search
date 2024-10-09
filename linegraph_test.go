@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -63,7 +62,6 @@ func TestDirected(t *testing.T) {
 			S.AddVertex(j+1, 0)
 			S.AddEdge(j+1, j)
 		}
-		fmt.Println(G)
 		ret = FindAll(G, S, nil)
 		if ret != 0 {
 			t.Errorf("exess finds?")
