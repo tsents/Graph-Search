@@ -35,9 +35,6 @@ type context struct {
 	path         map[uint64]uint64
 	chosen       map[uint64]void
 	prior        map[uint64]float32
-	calls        uint64
-	start_time   time.Time
-	depths       map[uint64]metric
 }
 
 type metric struct {
@@ -52,13 +49,16 @@ var output_file *os.File
 var depth_file *os.File
 var branching_file *os.File
 var branching []float32
+var logging_mu sync.Mutex
 var branching_counter []float32
-var branching_mu sync.Mutex
 var hair_counter []uint64
 var hair_file *os.File
 var crit_log *int
 var crit_file *os.File
 var deg_file *os.File
+var calls uint64
+var start_time time.Time
+var depths map[uint64]metric
 
 func main() {
 	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
@@ -578,7 +578,7 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 	if *prior_policy == 2 || *prior_policy == 1 {
 		for idx := range Subgraph {
-			return idx //arbotery
+			return idx //arbitery
 		}
 	}
 	max_score := float32(0)
@@ -634,7 +634,6 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	//debug stuff
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT)
-	to_track := []*map[uint64]metric{}
 	branching = make([]float32, len(Subgraph))
 	if hair_file == nil {
 		hair_counter = nil
@@ -647,10 +646,8 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 			// sig is a ^C (interrupt), handle it
 			if sig == os.Interrupt || sig == syscall.SIGINT {
 				time.Sleep(2000000000)
-				for i := 0; i < len(to_track); i++ {
-					printDepths(*to_track[i], depth_file)
-				}
 				fmt.Println("printing at interrupt")
+				printDepths(depths, depth_file)
 				printBranching(branching, branching_file)
 				hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 				pprof.StopCPUProfile()
@@ -658,23 +655,21 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 			}
 		}
 	}()
-
+	depths = make(map[uint64]metric)
+	calls = 0
+	start_time = time.Now()
 	//functionality
 	v_0 := ChooseStart(Subgraph, prior)
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[v_0].attribute.color {
 			wg.Add(1)
-			depths := make(map[uint64]metric)
-			to_track = append(to_track, &depths)
 			context := context{Graph: Graph,
 				Subgraph:     Subgraph,
 				restrictions: make(map[uint64]map[uint64]void, len(Subgraph)),
 				path:         make(map[uint64]uint64),
 				chosen:       make(map[uint64]void),
 				prior:        prior,
-				calls:        0,
-				start_time:   time.Now(),
-				depths:       depths}
+			}
 			go func(u uint64) {
 				ret := RecursionSearch(&context, u, v_0)
 				ops.Add(uint64(ret))
@@ -687,21 +682,18 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	}
 	wg.Wait()
 	printBranching(branching, branching_file)
+	printDepths(depths, depth_file)
 	hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 	return ops.Load()
 }
 
 func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	//debug
-	context.calls++
-	if context.depths != nil {
-		if _, ok := context.depths[uint64(len(context.chosen))]; !ok {
-			context.depths[uint64(len(context.chosen))] = metric{time.Since(context.start_time), context.calls}
-		}
-		if len(context.Subgraph) == (len(context.path) + 1) {
-			printDepths(context.depths, depth_file)
-			// depth_file.WriteString(fmt.Sprintf("%v\n", context.depths))
-			context.depths = nil
+	logging_mu.Lock()
+	calls++
+	if depths != nil {
+		if _, ok := depths[uint64(len(context.chosen))]; !ok {
+			depths[uint64(len(context.chosen))] = metric{time.Since(start_time), calls}
 		}
 	}
 	if len(context.chosen) == *crit_log {
@@ -711,12 +703,14 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 	if hair_counter != nil && hair_counter[len(context.chosen)] == 0 {
 		degDist(context.Subgraph, context.chosen, deg_file)
-		for v := range context.chosen {
-			if len(context.Subgraph[v].neighborhood) < 4 {
-				hair_counter[len(context.chosen)]++
-			}
-		}
+		hair_counter[len(context.chosen)] = 1
+		// for v := range context.chosen {
+		// 	if len(context.Subgraph[v].neighborhood) < 4 {
+		// 		hair_counter[len(context.chosen)]++
+		// 	}
+		// }
 	}
+	logging_mu.Unlock()
 
 	//functionality
 	if _, ok := context.path[v_g]; ok {
@@ -743,10 +737,10 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 		//debug
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
-		branching_mu.Lock()
+		logging_mu.Lock()
 		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
 		branching_counter[len(context.chosen)]++
-		branching_mu.Unlock()
+		logging_mu.Unlock()
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
