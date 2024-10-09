@@ -17,8 +17,10 @@ type void struct{}
 type graph map[uint64]vertex
 
 type vertex struct {
-	attribute    att
-	neighborhood map[uint64]void
+	attribute        att
+	neighborhood     map[uint64]void
+	neighborhood_in  map[uint64]void
+	neighborhood_out map[uint64]void
 }
 
 type att struct {
@@ -36,6 +38,7 @@ type context struct {
 
 var prior_policy *int
 var output_file *os.File
+var directed *bool
 var Finf float32 = math.Float32frombits(0x7F800000)
 
 func main() {
@@ -47,6 +50,7 @@ func main() {
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
 	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
+	directed = flag.Bool("directed", false, "change to directed graphs, default is automaticly undirected")
 	flag.Parse()
 
 	fmt.Println("output ->", *out_fname)
@@ -186,7 +190,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
-	if len(context.Subgraph) == (len(context.path) + 1) {
+	if len(context.Subgraph) == (len(context.chosen) + 1) {
 		context.path[v_g] = v_s
 		output_file.WriteString(fmt.Sprintf("%v\n", context.path))
 		delete(context.path, v_g)
@@ -245,7 +249,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 			var single_inverse map[uint64]void = inverse_restrictions[u]
 			mu.Unlock()
 
-			SingleUpdate(context, u, v_g, &single_inverse, &single_rest)
+			SingleUpdate(context, u, v_s, v_g, &single_inverse, &single_rest)
 
 			mu.Lock()
 			context.restrictions[u] = single_rest
@@ -260,13 +264,36 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 	wg.Wait()
 	return inverse_restrictions, empty
 }
-func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
+func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
-	} else {
-		// _, ok := G[v_g].neighborhood[u_instance]
+		if !*directed {
+			*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			return
+		}
+
+		//directed
+		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
+			*single_rest = ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
+		}
+		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
+			if _, ok := context.Subgraph[v_s].neighborhood_out[u]; !ok {
+				*single_rest = ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
+				return
+			}
+			intersection := make(map[uint64]void)
+			for key := range *single_rest {
+				if _, ok := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)[key]; !ok {
+					intersection[key] = void{}
+				}
+			}
+			*single_rest = intersection
+		}
+		return
+	}
+	// _, ok := G[v_g].neighborhood[u_instance]
+	if !*directed {
 		for u_instance := range *single_rest {
 			if _, ok := context.Graph[v_g].neighborhood[u_instance]; !ok {
 				if *single_inverse == nil {
@@ -276,14 +303,56 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 				delete(*single_rest, u_instance)
 			}
 		}
-
+		return
+	}
+	if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
+		for u_instance := range *single_rest {
+			if _, ok := context.Graph[v_g].neighborhood_out[u_instance]; !ok {
+				if *single_inverse == nil {
+					*single_inverse = make(map[uint64]void)
+				}
+				(*single_inverse)[u_instance] = void{}
+				delete(*single_rest, u_instance)
+			}
+		}
+	}
+	if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
+		for u_instance := range *single_rest {
+			if _, ok := context.Graph[v_g].neighborhood_in[u_instance]; !ok {
+				if *single_inverse == nil {
+					*single_inverse = make(map[uint64]void)
+				}
+				(*single_inverse)[u_instance] = void{}
+				delete(*single_rest, u_instance)
+			}
+		}
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if len(Graph[v].neighborhood) >= deg && Graph[v].attribute.color == c {
+		if Graph[v].attribute.color == c {
+			output[v] = void{}
+		}
+	}
+	return output
+}
+
+func ColoredNeighborhoodOut(Graph graph, u uint64, c uint32) map[uint64]void {
+	output := make(map[uint64]void)
+	for v := range Graph[u].neighborhood_out {
+		if Graph[v].attribute.color == c {
+			output[v] = void{}
+		}
+	}
+	return output
+}
+
+func ColoredNeighborhoodIn(Graph graph, u uint64, c uint32) map[uint64]void {
+	output := make(map[uint64]void)
+	for v := range Graph[u].neighborhood_in {
+		if Graph[v].attribute.color == c {
 			output[v] = void{}
 		}
 	}
@@ -294,7 +363,7 @@ func (Graph graph) AddVertex(u uint64, c uint32) {
 	if _, ok := Graph[u]; ok {
 		return
 	}
-	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}}
+	Graph[u] = vertex{neighborhood: make(map[uint64]void), attribute: att{color: c}, neighborhood_in: make(map[uint64]void), neighborhood_out: make(map[uint64]void)}
 }
 
 func (Graph graph) AddEdge(u uint64, v uint64) {
@@ -307,6 +376,10 @@ func (Graph graph) AddEdge(u uint64, v uint64) {
 	}
 	if _, ok := Graph[v]; !ok {
 		Graph.AddVertex(v, ^uint32(0))
+	}
+	if *directed {
+		Graph[u].neighborhood_out[v] = void{}
+		Graph[v].neighborhood_in[u] = void{}
 	}
 	Graph[u].neighborhood[v] = void{}
 	Graph[v].neighborhood[u] = void{}
