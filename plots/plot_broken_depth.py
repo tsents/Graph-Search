@@ -5,7 +5,7 @@ import glob
 import numpy as np
 
 # Define the directory containing the CSV files
-directory_path = 'dat/bn-human-Jung2015_M87125334/'
+directory_path = 'dat/flybrain-0.4sparse/'
 depth_file_pattern = os.path.join(directory_path, 'depth*.csv')
 branching_file_pattern = os.path.join(directory_path, 'branching*.csv')
 
@@ -28,6 +28,15 @@ branching_legend_mapping = {
     'branching2.csv': 'Gready prior based on G',
     'branching3.csv': 'Random prior',
     'branching4.csv': 'Gready prior based on S',
+}
+
+
+deg_names = {
+    'deg0.txt': 'Our prior based on S',
+    'deg1.txt': 'Our prior based on G',
+    'deg2.txt': 'Gready prior based on G',
+    'deg3.txt': 'Random prior',
+    'deg4.txt': 'Gready prior based on S',
 }
 
 # Loop through each depth file matching the pattern
@@ -137,8 +146,13 @@ ax3.set_ylabel('Branching Factor')
 ax3.legend()
 ax3.grid(True)
 
-from matplotlib import cm
-from scipy.interpolate import griddata
+from matplotlib.tri import Triangulation, TriAnalyzer
+import matplotlib.ticker as mticker
+
+# My axis should display 10⁻¹ but you can switch to e-notation 1.00e+01
+def log_tick_formatter(val, pos=None):
+    return f"$10^{{{int(val)}}}$"  # remove int() if you don't use MaxNLocator
+    # return f"{10**val:.2e}"      # e-Notation
 
 deg_file_pattern = os.path.join(directory_path, 'deg*.txt')
 
@@ -151,99 +165,65 @@ for file_name, ax4 in zip(glob.glob(deg_file_pattern),axes):
     data_dict = {}
     with open(file_name, 'r') as file:
         for line_number, line in enumerate(file):
-            if line_number % 100 == 0:
+            if line_number % 50 == 0 or (line_number > 8500 and line_number % 5 == 0) or (line_number > 9500) :
                 if line.strip():  # Ignore empty lines
                     line = line[4:-2]  # Remove "map[" from start and "]" from end
                     pairs = line.split()  # Split by whitespace
-                    x_value = 100000 - sum(float(pair.split(':')[1]) for pair in pairs)  # Sum of Z values for X
-
+                    x_value = 10000 - sum(float(pair.split(':')[1]) for pair in pairs)  # Sum of Z values for X
+                    pair_data = []
                     for pair in pairs:
                         split_pair = pair.split(':')
-                        key = float(split_pair[0])  # This will be the Y value (name)
-                        value = float(split_pair[1])  # Convert Z value to float
-                        # print(x_value,key,value)
-
-                        # Store the latest entry in the dictionary
-                        data_dict[key] = (x_value, value)  # Override if key exists
-    # data_dict = [(x_value, value) for (x_value, value) in data_dict if x_value % 100 == 0]
+                        key = float(split_pair[0]) 
+                        value = float(split_pair[1])
+                        pair_data.append((key,value)) 
+                    data_dict[x_value] = pair_data # there was a bug that there where multiple instences of the same depth, this is why we need this
 
     x = []
     y = []
     z = []
 
-    for key, (x_val, z_val) in data_dict.items():
-        x.append(x_val)
-        y.append(key)  # Y is the key (name)
-        z.append(z_val)
+    for x_val, arr in data_dict.items():
+        for (y_val,z_val) in arr:
+            x.append(x_val)
+            y.append(y_val)  
+            z.append(z_val)
+
+    y = np.log10(y)
+    z = np.log10(z)
+    x = np.array(x,dtype=int)
+    y = np.array(y,dtype=float)
+    z = np.array(z,dtype=float)
+
+    triang = Triangulation(x, y)
 
 
-    ax4.scatter(x,y,z)
-    # grid_x, grid_y = np.mgrid[min(x):max(x), min(y):max(y)]
+    tri_analyzer = TriAnalyzer(triang)
+    valid_triangles = []
+    for i in range(len(triang.triangles)):
+        tri_vertices = triang.triangles[i]
+        y_coords = y[tri_vertices]
+        x_coords = y[tri_vertices]
+        
+        y_distance = np.max(y_coords) - np.min(y_coords)
+        x_distance = np.max(x_coords) - np.min(x_coords)
 
-    # # Interpolate the data
-    # grid_z = griddata((x, y), z, (grid_x, grid_y), method='linear')
-
-    # ax4.plot_surface(grid_x, grid_y, grid_z, cmap='viridis')
-
-#     for key, (x_val, z_val) in data_dict.items():
-#         x.append(x_val)
-#         y.append(key)  # Y is the key (name)
-#         z.append(z_val)
-
-#     # Convert lists to numpy arrays
-#     x = np.array(x,dtype=float)
-#     y = np.array(y,dtype=float)
-#     z = np.array(z,dtype=float)
-
-#     # Create a grid for surface plot
-#     # Use unique Y values to create a meshgrid
-#     # y_unique = np.unique(y)
-#     # x_unique = np.unique(x)
-    
-#     # # Create a grid for X and Y
-#     # X, Y = np.meshgrid(x_unique, y_unique)
-#     ax4.plot_trisurf(x, y, z, cmap=cm.coolwarm,
-#                         linewidth=1, antialiased=False)
-#     # # Initialize Z with NaNs for surface plotting
-#     # Z = np.full(X.shape,np.nan)
-
-#     # for i, unique_y in enumerate(y_unique):
-#     #     for j, unique_x in enumerate(x_unique):
-#     #         # Find corresponding Z values
-#     #         z_values = [data_dict[key][1] for key in data_dict if key == unique_y and data_dict[key][0] == unique_x]
-#     #         if z_values:
-#     #             Z[i, j] = z_values[-1]  # Take the last value if duplicates exist
+        if (x_distance < 50 and y_distance < 0.5) or (x[tri_vertices] > 9500).all():
+            valid_triangles.append(i)
 
 
-#     # # Z = np.log1p(Z)
-#     # # Y = np.log2(Y)
-#     # ax4.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-#     #                     linewidth=1, antialiased=False)
+    filtered_triangles = triang.triangles[valid_triangles]
 
-#     # # Create a mesh grid for surface plotting
-#     # X_unique = np.unique(X)
-#     # Y_unique = np.unique(Y)
-#     # X_grid, Y_grid = np.meshgrid(X_unique, Y_unique)
-#     # Z_grid = np.zeros_like(X_grid)
+    ax4.plot_trisurf(x,y,z,triangles=filtered_triangles, cmap='viridis')
 
-#     # for i in range(len(X)):
-#     #     idx_x = np.where(X_unique == X[i])[0][0]
-#     #     idx_y = np.where(Y_unique == Y[i])[0][0]
-#     #     Z_grid[idx_y, idx_x] = Z[i]
 
-#     # Plot the surface
-#     # ax4.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-#     #                  linewidth=0, antialiased=False)
+    ax4.set_xlim3d(0,11000)
+    ax4.set_ylim3d(max(y),min(y))
+    ax4.set_title(deg_names[os.path.basename(file_name)])
+    ax4.zaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+    ax4.zaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    ax4.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+    ax4.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
 
-#     # Set titles and labels for each subplot
-#     ax4.set_title(f'3D Plot of Degree Data from {file_name}')
-#     ax4.set_xlabel('Depth')
-#     ax4.set_ylabel('Split[0]')
-#     ax4.set_zlabel('Split[1]')
-#     ax4.grid(True)
-
-#     # Flip the Y-axis
-#     ax4.set_ylim(ax4.get_ylim()[::-1])  # Reverse the Y-axis direction
 
 # # Adjust layout and show the plots
 plt.tight_layout()
