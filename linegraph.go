@@ -163,7 +163,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	//functionality
 	v_0 := ChooseStart(Subgraph, prior)
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[v_0].attribute.color && len(Graph[u].neighborhood) >= len(Subgraph[v_0].neighborhood) {
+		if Graph[u].attribute.color == Subgraph[v_0].attribute.color {
 			wg.Add(1)
 			context := context{Graph: Graph,
 				Subgraph:     Subgraph,
