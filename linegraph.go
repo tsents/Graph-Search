@@ -212,8 +212,6 @@ func main() {
 		}
 	}
 	fmt.Println(len(G), len(S))
-	colorDist(G)
-	colorDist(S)
 
 	prior := make(map[uint64]float32)
 	switch *prior_policy {
@@ -254,14 +252,6 @@ func main() {
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
-}
-
-func colorDist(Graph graph) {
-	bins := make(map[uint32]uint64)
-	for _, v := range Graph {
-		bins[v.attribute.color] += 1
-	}
-	fmt.Println(bins)
 }
 
 func degDist(Graph graph, inv_subset map[uint64]void, file *os.File) {
@@ -577,12 +567,18 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 
 func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 	if *prior_policy == 2 || *prior_policy == 1 {
-		for idx := range Subgraph {
-			return idx //arbitery
+		max_deg := 0
+		idx := ^uint64(0)
+		for u := range Subgraph {
+			if len(Subgraph[u].neighborhood) > max_deg {
+				max_deg = len(Subgraph[u].neighborhood)
+				idx = u
+			}
 		}
+		return idx
 	}
 	max_score := float32(0)
-	idx := uint64(*start_point)
+	idx := ^uint64(0)
 	for u := range Subgraph {
 		score := RestrictionScore[uint64](nil, prior, u)
 		if score > max_score {
@@ -645,11 +641,12 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 		for sig := range c {
 			// sig is a ^C (interrupt), handle it
 			if sig == os.Interrupt || sig == syscall.SIGINT {
-				time.Sleep(2000000000)
 				fmt.Println("printing at interrupt")
+				logging_mu.Lock()
 				printDepths(depths, depth_file)
 				printBranching(branching, branching_file)
 				hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
+				logging_mu.Unlock()
 				pprof.StopCPUProfile()
 				os.Exit(0)
 			}
@@ -661,7 +658,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	//functionality
 	v_0 := ChooseStart(Subgraph, prior)
 	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[v_0].attribute.color {
+		if Graph[u].attribute.color == Subgraph[v_0].attribute.color && len(Graph[u].neighborhood) >= len(Subgraph[v_0].neighborhood) {
 			wg.Add(1)
 			context := context{Graph: Graph,
 				Subgraph:     Subgraph,
@@ -826,7 +823,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 }
 func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
+		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
 	} else {
@@ -844,10 +841,10 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c {
+		if Graph[v].attribute.color == c && len(Graph[v].neighborhood) >= deg {
 			output[v] = void{}
 		}
 	}
