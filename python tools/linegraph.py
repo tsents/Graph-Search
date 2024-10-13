@@ -27,33 +27,6 @@ def format_as_array(graph_dict):
         output[val] = key
     return output
 
-
-#for any ordering
-def search_all_subgraphs_orderd(Graph,Subgraph,ordering):
-    all_subgraphs = []
-
-    def wrapper(node):
-        if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
-            print("in",node)
-            output = recursion_search_ordered(Graph,Subgraph,node,ordering[0],{},{},ordering) #we can run this part in parallel, to massivly boost speed
-            all_subgraphs.extend(output)
-            print("done",node)
-
-    # pool = Pool(64)
-
-    # for node in Graph.nodes():
-    #     pool.apply_async(wrapper, (node,))    
-
-    # pool.close()
-    # pool.join()
-    for node in Graph.nodes():
-        wrapper(node)
-    #     if Graph.nodes[node]["color"] == Subgraph.nodes[ordering[0]]["color"]:
-    #         output = recursion_search_ordered(Graph,Subgraph,node,ordering[0],{},{},ordering) #we can run this part in parallel, to massivly boost speed
-    #         all_subgraphs.extend(output)
-    #         # print("started from", node, output,len(output)) #the bug is somewhere here!
-    return all_subgraphs
-
 def search_all_subgraphs(Graph,Subgraph):
     all_subgraphs = []
     for node in Graph.nodes():
@@ -181,12 +154,6 @@ def run_without_test(size_g,size_s,k,p_g,p_s):
     start1 = time.time()
     output1 = search_all_subgraphs(G,Subgraph)
     time1 = time.time() - start1
-
-
-    ordering = [i for i in range(Subgraph.number_of_nodes())]
-    start2 = time.time()
-    output2 = search_all_subgraphs_orderd(G,Subgraph,ordering)
-    time2 = time.time() - start2
 
     print(time1,time2,len(output1),len(output2))
 
