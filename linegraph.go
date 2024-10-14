@@ -566,7 +566,7 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 }
 
 func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
-	if *prior_policy == 2 || *prior_policy == 1 {
+	if *prior_policy == 3 || *prior_policy == 2 || *prior_policy == 1 {
 		max_deg := 0
 		idx := ^uint64(0)
 		for u := range Subgraph {
