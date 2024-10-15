@@ -523,37 +523,6 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	return ret
 }
 
-// func MinRestrictionsCall(Graph graph, Subgraph graph, restrictions map[uint64]map[uint64]void,
-// 	path map[uint64]uint64, chosen map[uint64]void, ordering []uint64, file *os.File) int {
-// 	ret := 0
-// 	best_length := ^uint64(0)
-// 	targets := []uint64{}
-// 	new_v_s := uint64(0)
-// 	for t := range restrictions {
-// 		if uint64(len(restrictions[t])) < best_length {
-// 			new_v_s = t
-// 			best_length = uint64(len(restrictions[t]))
-// 		}
-// 		if best_length <= 1 {
-// 			fmt.Println("targets size", best_length, "depth", len(path), "vertex", new_v_s, "short skip")
-// 			new_v_g := uint64(0)
-// 			for v := range restrictions[new_v_s] {
-// 				new_v_g = v
-// 			}
-// 			ret += RecursionSearch(Graph, Subgraph, new_v_g, new_v_s, restrictions, path, chosen)
-// 			return ret
-// 		}
-// 	}
-// 	for u_instance := range restrictions[new_v_s] {
-// 		targets = append(targets, u_instance)
-// 	}
-// 	fmt.Println("targets size", len(targets), "death", len(path), "vertex", new_v_s)
-// 	for i := 0; i < len(targets); i++ {
-// 		ret += RecursionSearch(Graph, Subgraph, targets[i], new_v_s, restrictions, path, chosen)
-// 	}
-// 	return ret
-// }
-
 func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]map[uint64]void, bool) {
 	empty := false
 	inverse_restrictions := make(map[uint64]map[uint64]void)
