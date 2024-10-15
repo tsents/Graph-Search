@@ -44,7 +44,6 @@ type metric struct {
 
 var prior_policy *int
 var recolor_policy *int
-var start_point *int64
 var output_file *os.File
 var depth_file *os.File
 var branching_file *os.File
@@ -66,7 +65,6 @@ func main() {
 	debug.SetMemoryLimit(200 * 128 * 1024 * 1024) //GBit
 
 	out_fname := flag.String("out", "dat/output.txt", "output location")
-	cmd_error := flag.Int("err", 0, "number of errors in the search\ndefault is exact isomorphism (default 0)")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
 	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
@@ -74,7 +72,6 @@ func main() {
 	print_subset := flag.Bool("subout", false, "if subset, output it at that folder")
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
 	profile := flag.Bool("prof", false, "profile the program")
-	start_point = flag.Int64("start", 1, "the starting point of the search")
 	depth_log := flag.String("depth", "", "fname to log the deapth over time")
 	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
 	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
@@ -124,21 +121,18 @@ func main() {
 			panic(err)
 		}
 	}
-
 	if *crit_fname != "" {
 		crit_file, err = os.Create(*crit_fname)
 		if err != nil {
 			panic(err)
 		}
 	}
-
 	if *branching_log != "" {
 		branching_file, err = os.Create(*branching_log)
 		if err != nil {
 			panic(err)
 		}
 	}
-
 	if *hair_log != "" {
 		hair_file, err = os.Create(*hair_log)
 		if err != nil {
@@ -153,7 +147,6 @@ func main() {
 	}
 
 	gra_fname := flag.Args()[0]
-	num_errors := *cmd_error
 
 	G := ReadGraph(gra_fname, *input_fmt, *input_parse)
 	var S graph
@@ -162,34 +155,15 @@ func main() {
 		S = ReadGraph(sub_fname, *input_fmt, *input_parse)
 	} else {
 		S = reduceGraph(G, int(*subset_size))
-		if int64(len(S)) < *subset_size {
-			m := make(map[uint64]void)
-			for v := range G {
-				m[v] = void{}
-			}
-			var componnents []map[uint64]void = ConnectedComponents(G, m) //array of sets of vertecies
-
-			largest := len(componnents[0])
-			largest_component := componnents[0]
-			for i := 1; i < len(componnents); i++ {
-				fmt.Println("componnentsize", len(componnents[i]))
-				if len(componnents[i]) > largest {
-					largest = len(componnents[i])
-					largest_component = componnents[i]
-				}
-			}
-			for idx := range largest_component {
-				*start_point = int64(idx)
-				break
-			}
+		for int64(len(S)) < *subset_size { //in golang this is a while loop
 			S = reduceGraph(G, int(*subset_size))
 		}
 		S = Sparsify(S, float32(*sparse))
 		if *print_subset {
-			if err := os.MkdirAll(fmt.Sprintf("dat/subgraphs/subs%d", *start_point), os.ModePerm); err != nil {
+			if err := os.MkdirAll("dat/subgraphs/sub", os.ModePerm); err != nil {
 				panic(err)
 			}
-			sub_vertecies, err := os.Create(fmt.Sprintf("dat/subgraphs/subs%d/sub.node_labels", *start_point))
+			sub_vertecies, err := os.Create("dat/subgraphs/sub/sub.node_labels")
 			if err != nil {
 				panic(err)
 			}
@@ -197,7 +171,7 @@ func main() {
 				fmt.Fprintln(sub_vertecies, v, S[v].attribute.color)
 			}
 			sub_vertecies.Close()
-			sub_edges, err := os.Create(fmt.Sprintf("dat/subgraphs/subs%d/sub.edges", *start_point))
+			sub_edges, err := os.Create("dat/subgraphs/sub/sub.edges")
 			if err != nil {
 				panic(err)
 			}
@@ -236,19 +210,7 @@ func main() {
 	}
 
 	start := time.Now()
-	// FindAllSubgraphPathgraph(G, S, ordering, fmt.Sprintf("output%v_%v", i, j))
-
-	// if num_errors != 0{
-	// 	IncompleteFindAll(G, S, uint64(num_errors))
-	// } else {
-	// 	FindAllSubgraphPathgraph(G,S,[]uint64{uint64(*start_point)},"bla")
-	// }
-	var matches uint64
-	if num_errors == 0 {
-		matches = FindAll(G, S, prior)
-	} else {
-		matches = IncompleteFindAll(G, S, uint64(num_errors), prior)
-	}
+	var matches uint64 = FindAll(G, S, prior)
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
@@ -273,7 +235,7 @@ func degDist(Graph graph, inv_subset map[uint64]void, file *os.File) {
 }
 
 func reduceGraph(Graph graph, size int) graph {
-	subset := connectedComponentOfSizeK(Graph, uint64(*start_point), size)
+	subset := connectedComponentOfSizeK(Graph, randomVertex(Graph), size)
 	return graphSubset(Graph, subset)
 }
 
@@ -284,7 +246,7 @@ func Sparsify(G graph, p float32) graph {
 	}
 	fmt.Println("S total", total)
 
-	mst := minimumSpanningTree(G, uint64(*start_point))
+	mst := minimumSpanningTree(G, randomVertex(G))
 
 	for u := range G {
 		for v := range G[u].neighborhood {
@@ -344,192 +306,6 @@ func graphSubset(Graph graph, subset map[uint64]void) graph {
 		cpy[v] = vertex{Graph[v].attribute, new_neighborhood}
 	}
 	return cpy
-}
-
-func IncompleteFindAll(Graph graph, Subgraph graph, threshold uint64, prior map[uint64]float32) uint64 {
-	m := make(map[uint64]void)
-	for v := range Subgraph {
-		m[v] = void{}
-	}
-	var ret uint64 = 0
-	ret += IncompleteFindWithRoot(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), prior)
-	ret += IncompleteCaller(Graph, Subgraph, uint64(*start_point), threshold, make(map[uint64]void), m, prior)
-	return ret
-}
-
-func IncompleteCaller(Graph graph, Subgraph graph, v_start uint64, threshold uint64, ignore map[uint64]void, componnent map[uint64]void, prior map[uint64]float32) uint64 {
-	if uint64(len(Subgraph[v_start].neighborhood)) > threshold {
-		return 0
-	}
-	delete(componnent, v_start)
-	var ret uint64 = 0
-	ignore[v_start] = void{}
-	defer delete(ignore, v_start)
-
-	threshold -= uint64(len(Subgraph[v_start].neighborhood))
-
-	new_components := ConnectedComponents(Subgraph, componnent)
-
-	for i := 0; i < len(new_components); i++ {
-		if len(new_components[i]) > 0 {
-			new_v := uint64(0)
-			for v := range new_components[i] {
-				new_v = v
-				break
-			}
-			fmt.Println("call", new_v, threshold, ignore)
-
-			ret += IncompleteFindWithRoot(Graph, Subgraph, new_v, threshold, ignore, prior)
-
-			ret += IncompleteCaller(Graph, Subgraph, new_v, threshold, ignore, new_components[i], prior)
-		}
-	}
-	return ret
-}
-
-func IncompleteFindWithRoot(Graph graph, Subgraph graph, root uint64, threshold uint64, ignore map[uint64]void, prior map[uint64]float32) uint64 {
-	var wg sync.WaitGroup
-	var ops atomic.Uint64
-	start_time := time.Now()
-	for u := range Graph {
-		if Graph[u].attribute.color == Subgraph[root].attribute.color ||
-			Graph[u].attribute.color == ^uint32(0) || Subgraph[root].attribute.color == ^uint32(0) {
-			wg.Add(1)
-			go func(u uint64) {
-				var depths map[uint64]uint64 = nil
-				if depth_file != nil {
-					depths = make(map[uint64]uint64)
-				}
-				fmt.Println("start")
-				ret := IncompleteRecursionSearch(Graph, Subgraph, u, root, make(map[uint64]map[uint64]uint64),
-					make(map[uint64]uint64), deepCopy(ignore), threshold, prior, 0, depths)
-
-				// fmt.Println("done run", u, time.Since(start_time))
-				ops.Add(uint64(ret))
-				wg.Done()
-			}(u)
-		}
-		if u%512 == 0 { // regulrization, keeps memory under control
-			wg.Wait()
-		}
-	}
-	wg.Wait()
-	fmt.Println("done run", time.Since(start_time), ops.Load())
-	return ops.Load()
-}
-
-func IncompleteUpdateRestrictions(G graph, S graph, v_g uint64, v_s uint64, restrictions map[uint64]map[uint64]uint64,
-	chosen map[uint64]void, threshold uint64) map[uint64]map[uint64]uint64 {
-	inverse_restrictions := make(map[uint64]map[uint64]uint64)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	for u := range S[v_s].neighborhood {
-		wg.Add(1)
-		go func(u uint64) {
-			if _, ok := chosen[u]; ok {
-				wg.Done()
-				return
-			}
-			mu.Lock()
-			cur_rest := restrictions[u]
-			inv_rest := inverse_restrictions[u]
-			mu.Unlock()
-
-			incompleteSingleUpdate(G, S, u, v_g, threshold, &(cur_rest), &(inv_rest))
-
-			mu.Lock()
-			restrictions[u] = cur_rest
-			inverse_restrictions[u] = inv_rest
-			mu.Unlock()
-			wg.Done()
-		}(u)
-	}
-	wg.Wait()
-	return inverse_restrictions
-}
-
-func incompleteSingleUpdate(G graph, S graph, u uint64, v_g uint64, threshold uint64, rest *map[uint64]uint64, inv_rest *map[uint64]uint64) {
-	if *rest == nil {
-		//the restrictions is uninitialized
-		*rest = PriorityColoredNeighborhood(G, v_g, S[u].attribute.color, len(S[u].neighborhood)-int(threshold))
-		// when doing the degree constraint, we need the degree to be above d_u - threshold, because up to K edges may be gone
-		*inv_rest = make(map[uint64]uint64)
-		(*inv_rest)[0] = ^uint64(0) //special value to denote restrictions is new
-		return
-	}
-	for u_instance := range *rest {
-		if _, ok := G[v_g].neighborhood[u_instance]; !ok {
-			if *inv_rest == nil {
-				*inv_rest = make(map[uint64]uint64)
-			}
-			(*inv_rest)[u_instance] = (*rest)[u_instance]
-			(*rest)[u_instance] += 1
-			if (*rest)[u_instance] > threshold {
-				delete(*rest, u_instance)
-			}
-		}
-	}
-}
-
-// Graph,Subgraph,v_g,v_s,restrictions,path,chosen,threshold and prior are the context
-// calls and depths are debug only
-func IncompleteRecursionSearch(Graph graph, Subgraph graph, v_g uint64, v_s uint64,
-	restrictions map[uint64]map[uint64]uint64, path map[uint64]uint64,
-	chosen map[uint64]void, threshold uint64, prior map[uint64]float32, calls uint64, depths map[uint64]uint64) int {
-	if depths != nil {
-		calls += 1
-		if _, ok := depths[uint64(len(chosen))]; !ok {
-			depths[uint64(len(chosen))] = calls
-		}
-		if len(Subgraph) <= (len(chosen) + 1) {
-			depth_file.WriteString(fmt.Sprintf("%v\n", depths))
-			depths = nil
-		}
-	}
-
-	if _, ok := path[v_g]; ok {
-		return 0
-	}
-	if len(Subgraph) <= (len(chosen) + 1) {
-		if v_g != ^uint64(0) {
-			path[v_g] = v_s
-			defer delete(path, v_g)
-		}
-		output_file.WriteString(fmt.Sprintf("%v\n", path))
-		return 1
-	}
-	ret := 0
-	chosen[v_s] = void{}
-	defer delete(chosen, v_s)
-
-	if v_g != ^uint64(0) {
-		path[v_g] = v_s
-		defer delete(path, v_g)
-
-		inverse_restrictions := IncompleteUpdateRestrictions(Graph, Subgraph, v_g, v_s, restrictions, chosen, threshold)
-		defer IncompleteReverseRestrictions(restrictions, inverse_restrictions)
-		self_rest := restrictions[v_s]
-		delete(restrictions, v_s)
-		defer func() { restrictions[v_s] = self_rest }()
-	}
-
-	new_v_s := ChooseNext(restrictions, chosen, Subgraph, prior)
-	fmt.Println("depth", len(chosen), "target size", len(restrictions[new_v_s]), "open", len(restrictions), "skips", len(chosen)-len(path))
-
-	// cpy := deepCopy(restrictions[new_v_s])
-	for target := range restrictions[new_v_s] {
-		if restrictions[new_v_s][target] <= threshold {
-			ret += IncompleteRecursionSearch(Graph, Subgraph, target, new_v_s, restrictions, path, chosen, threshold-restrictions[new_v_s][target], prior, calls+1, depths)
-		}
-	}
-	//skip call!
-	// fmt.Println("skip call")
-	skip_deg := uint64(len(Subgraph[new_v_s].neighborhood))
-	if skip_deg <= threshold {
-		ret += IncompleteRecursionSearch(Graph, Subgraph, ^uint64(0), new_v_s, restrictions, path, chosen, threshold-skip_deg, prior, calls+1, depths)
-	}
-
-	return ret
 }
 
 func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
@@ -607,18 +383,6 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 		return prior[u]
 	}
 	return 0
-}
-
-func IncompleteReverseRestrictions(restrictions map[uint64]map[uint64]uint64, inverse_rest map[uint64]map[uint64]uint64) {
-	for u := range inverse_rest {
-		if inverse_rest[u][0] == ^uint64(0) {
-			delete(restrictions, u)
-		} else {
-			for u_instance := range inverse_rest[u] {
-				restrictions[u][u_instance] = inverse_rest[u][u_instance]
-			}
-		}
-	}
 }
 
 func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
@@ -823,7 +587,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 }
 func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
+		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, coloredDegs(context.Subgraph, u))
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
 	} else {
@@ -841,23 +605,11 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32, degs map[uint32]uint64) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c && len(Graph[v].neighborhood) >= deg {
+		if Graph[v].attribute.color == c && checkDegs(degs, coloredDegs(Graph, v)) {
 			output[v] = void{}
-		}
-	}
-	return output
-}
-
-func PriorityColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]uint64 {
-	output := make(map[uint64]uint64, len(Graph[u].neighborhood))
-	for v := range Graph[u].neighborhood {
-		if len(Graph[v].neighborhood) >= deg {
-			if Graph[v].attribute.color == c || Graph[v].attribute.color == ^uint32(0) {
-				output[v] = 0
-			}
 		}
 	}
 	return output
@@ -904,14 +656,6 @@ func Gnp(n uint64, p float32) graph {
 		}
 	}
 	return Graph
-}
-
-func deepCopy[T, V comparable](m map[T]V) map[T]V {
-	cpy := make(map[T]V)
-	for k, v := range m {
-		cpy[k] = v
-	}
-	return cpy
 }
 
 func ComponentsDFS(Graph graph, v_g uint64, visited map[uint64]void, component map[uint64]void, subset map[uint64]void) {
@@ -974,10 +718,38 @@ func printDepths(depths map[uint64]metric, file *os.File) {
 	}
 }
 
+func coloredDegs(Graph graph, v uint64) map[uint32]uint64 {
+	degs := make(map[uint32]uint64)
+	for u := range Graph[v].neighborhood {
+		degs[Graph[u].attribute.color] += 1
+	}
+	return degs
+}
+
+func checkDegs(s_degs map[uint32]uint64, g_degs map[uint32]uint64) bool {
+	for color := range s_degs {
+		if g_degs[color] < s_degs[color] {
+			return false
+		}
+	}
+	return true
+}
+
 func printBranching(branching []float32, file *os.File) {
 	file.WriteString("Depth,BranchingFactor\n")
 	for i := len(branching) - 1; i > 0; i-- { //print as csv instead!
 		branching[i] /= branching_counter[i]
 		file.WriteString(fmt.Sprintf("%v,%v\n", i, branching[i]))
 	}
+}
+
+func randomVertex(Graph graph) uint64 {
+	r := rand.IntN(len(Graph))
+	for v := range Graph {
+		if r == 0 {
+			return v
+		}
+		r--
+	}
+	panic("no random")
 }
