@@ -556,7 +556,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 }
 func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
-		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, coloredDegs(context.Subgraph, u))
+		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
 	} else {
@@ -574,10 +574,10 @@ func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[ui
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32, degs map[uint32]uint64) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
-		if Graph[v].attribute.color == c && checkDegs(degs, coloredDegs(Graph, v)) {
+		if Graph[v].attribute.color == c && len(Graph[v].neighborhood) >= deg {
 			output[v] = void{}
 		}
 	}
@@ -685,23 +685,6 @@ func printDepths(depths map[uint64]metric, file *os.File) {
 	for point := range depths { //print as csv instead!
 		file.WriteString(fmt.Sprintf("%v,%v,%v\n", point, depths[point].time, depths[point].calls))
 	}
-}
-
-func coloredDegs(Graph graph, v uint64) map[uint32]uint64 {
-	degs := make(map[uint32]uint64)
-	for u := range Graph[v].neighborhood {
-		degs[Graph[u].attribute.color] += 1
-	}
-	return degs
-}
-
-func checkDegs(s_degs map[uint32]uint64, g_degs map[uint32]uint64) bool {
-	for color := range s_degs {
-		if g_degs[color] < s_degs[color] {
-			return false
-		}
-	}
-	return true
 }
 
 func printBranching(branching []float32, file *os.File) {
