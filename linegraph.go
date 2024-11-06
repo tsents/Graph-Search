@@ -91,18 +91,6 @@ func main() {
 			panic(err)
 		}
 		defer pprof.StopCPUProfile()
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-
-		go func() {
-			for sig := range c {
-				// sig is a ^C (interrupt), handle it
-				if sig == os.Interrupt {
-					pprof.StopCPUProfile()
-					os.Exit(0)
-				}
-			}
-		}()
 	}
 
 	fmt.Println("output ->", *out_fname)
