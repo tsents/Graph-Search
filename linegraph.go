@@ -55,6 +55,7 @@ var hair_file *os.File
 var crit_log *int
 var crit_file *os.File
 var deg_file *os.File
+var reduction_file *os.File
 var calls uint64
 var start_time time.Time
 var depths map[uint64]metric
@@ -78,6 +79,7 @@ func main() {
 	crit_fname := flag.String("critfile", "", "fname for the file for the crit option")
 	hair_log := flag.String("hair", "", "fname to log the number of vertecies with small degree that are left to choose vs algorithm depth")
 	degs_log := flag.String("deg", "", "fname to log the degree distribution")
+	reduction_log := flag.String("factor", "", "fname to reduction factor")
 	sparse := flag.Float64("sparse", 0, "sparsify the subgraph")
 
 	flag.Parse()
@@ -132,6 +134,14 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	if *reduction_log != "" {
+		reduction_file, err = os.Create(*reduction_log)
+		if err != nil {
+			panic(err)
+		}
+		reduction_file.WriteString("Depth,Factor\n")
 	}
 
 	gra_fname := flag.Args()[0]
@@ -479,7 +489,16 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 	self_list := context.restrictions[v_s]
 	delete(context.restrictions, v_s)
+	var prev_lengths map[uint64]float64 = make(map[uint64]float64)
+	for i := range context.restrictions {
+		prev_lengths[i] = float64(len(context.restrictions[i]))
+	}
 	inverse_restrictions, empty := UpdateRestrictions(context, v_g, v_s)
+	var lengths map[uint64]float64 = make(map[uint64]float64)
+	for i := range context.restrictions {
+		lengths[i] = float64(len(context.restrictions[i]))
+	}
+	reduction_file.WriteString(fmt.Sprintf("%v,%v\n", len(context.chosen), calculateFactor(lengths, prev_lengths)))
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior)
@@ -692,4 +711,14 @@ func randomVertex(Graph graph) uint64 {
 		r--
 	}
 	panic("no random")
+}
+
+func calculateFactor(lengths map[uint64]float64, prev_lengths map[uint64]float64) float64 {
+	var product float64 = 1
+	for i := range lengths {
+		if _, ok := prev_lengths[i]; ok {
+			product = product * lengths[i] / prev_lengths[i]
+		}
+	}
+	return product
 }

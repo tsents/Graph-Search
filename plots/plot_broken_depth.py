@@ -5,7 +5,7 @@ import glob
 import numpy as np
 
 # Define the directory containing the CSV files
-directory_path = 'dat/flybrain-0.4sparse/'
+directory_path = 'dat/IMDB-new-dat/'
 depth_file_pattern = os.path.join(directory_path, 'depth*.csv')
 branching_file_pattern = os.path.join(directory_path, 'branching*.csv')
 
@@ -40,41 +40,41 @@ deg_names = {
 }
 
 # Loop through each depth file matching the pattern
-for file_path in glob.glob(depth_file_pattern):
-    largest_df = None
-    max_rows = 0
+# for file_path in glob.glob(depth_file_pattern):
+#     largest_df = None
+#     max_rows = 0
     
-    with open(file_path, 'r') as file:
-        current_df = []
-        header = None
+#     with open(file_path, 'r') as file:
+#         current_df = []
+#         header = None
         
-        for line in file:
-            stripped_line = line.strip()
+#         for line in file:
+#             stripped_line = line.strip()
             
-            if stripped_line.startswith('Depth'):
-                if current_df and header is not None:
-                    temp_df = pd.DataFrame(current_df, columns=header)
-                    if len(temp_df) > max_rows:
-                        largest_df = temp_df
-                        max_rows = len(temp_df)
+#             if stripped_line.startswith('Depth'):
+#                 if current_df and header is not None:
+#                     temp_df = pd.DataFrame(current_df, columns=header)
+#                     if len(temp_df) > max_rows:
+#                         largest_df = temp_df
+#                         max_rows = len(temp_df)
                 
-                header = stripped_line.split(',')
-                current_df = []
-            elif stripped_line:
-                current_df.append(stripped_line.split(','))
+#                 header = stripped_line.split(',')
+#                 current_df = []
+#             elif stripped_line:
+#                 current_df.append(stripped_line.split(','))
         
-        if current_df and header is not None:
-            temp_df = pd.DataFrame(current_df, columns=header)
-            if len(temp_df) > max_rows:
-                largest_df = temp_df
+#         if current_df and header is not None:
+#             temp_df = pd.DataFrame(current_df, columns=header)
+#             if len(temp_df) > max_rows:
+#                 largest_df = temp_df
 
-    largest_df['Depth'] = pd.to_numeric(largest_df['Depth'])
-    largest_df['Time'] = pd.to_timedelta(largest_df['Time'])  # Convert Time to timedelta
-    largest_df.sort_values(by='Depth', inplace=True)
-    largest_df = largest_df[largest_df['Depth'] >= 0]
+#     largest_df['Depth'] = pd.to_numeric(largest_df['Depth'])
+#     largest_df['Time'] = pd.to_timedelta(largest_df['Time'])  # Convert Time to timedelta
+#     largest_df.sort_values(by='Depth', inplace=True)
+#     largest_df = largest_df[largest_df['Depth'] >= 0]
 
-    if largest_df is not None:
-        depth_dataframes.append((largest_df, os.path.basename(file_path)))
+#     if largest_df is not None:
+#         depth_dataframes.append((largest_df, os.path.basename(file_path)))
 
 # Loop through each branching factor file matching the pattern
 for file_path in glob.glob(branching_file_pattern):
@@ -154,75 +154,75 @@ def log_tick_formatter(val, pos=None):
     return f"$10^{{{int(val)}}}$"  # remove int() if you don't use MaxNLocator
     # return f"{10**val:.2e}"      # e-Notation
 
-deg_file_pattern = os.path.join(directory_path, 'deg*.txt')
+# deg_file_pattern = os.path.join(directory_path, 'deg*.txt')
 
-num_files = len(glob.glob(deg_file_pattern))
-fig, axes = plt.subplots(nrows=1, ncols=num_files, figsize=(15, 5), subplot_kw={'projection': '3d'})
-
-
-# # Iterate over files matching the pattern
-for file_name, ax4 in zip(glob.glob(deg_file_pattern),axes):
-    data_dict = {}
-    with open(file_name, 'r') as file:
-        for line_number, line in enumerate(file):
-            if line_number % 50 == 0 or (line_number > 8500 and line_number % 5 == 0) or (line_number > 9500) :
-                if line.strip():  # Ignore empty lines
-                    line = line[4:-2]  # Remove "map[" from start and "]" from end
-                    pairs = line.split()  # Split by whitespace
-                    x_value = 10000 - sum(float(pair.split(':')[1]) for pair in pairs)  # Sum of Z values for X
-                    pair_data = []
-                    for pair in pairs:
-                        split_pair = pair.split(':')
-                        key = float(split_pair[0]) 
-                        value = float(split_pair[1])
-                        pair_data.append((key,value)) 
-                    data_dict[x_value] = pair_data # there was a bug that there where multiple instences of the same depth, this is why we need this
-
-    x = []
-    y = []
-    z = []
-
-    for x_val, arr in data_dict.items():
-        for (y_val,z_val) in arr:
-            x.append(x_val)
-            y.append(y_val)  
-            z.append(z_val)
-
-    y = np.log10(y)
-    z = np.log10(z)
-    x = np.array(x,dtype=int)
-    y = np.array(y,dtype=float)
-    z = np.array(z,dtype=float)
-
-    triang = Triangulation(x, y)
+# num_files = len(glob.glob(deg_file_pattern))
+# fig, axes = plt.subplots(nrows=1, ncols=num_files, figsize=(15, 5), subplot_kw={'projection': '3d'})
 
 
-    tri_analyzer = TriAnalyzer(triang)
-    valid_triangles = []
-    for i in range(len(triang.triangles)):
-        tri_vertices = triang.triangles[i]
-        y_coords = y[tri_vertices]
-        x_coords = y[tri_vertices]
+# # # Iterate over files matching the pattern
+# for file_name, ax4 in zip(glob.glob(deg_file_pattern),axes):
+#     data_dict = {}
+#     with open(file_name, 'r') as file:
+#         for line_number, line in enumerate(file):
+#             if line_number % 50 == 0 or (line_number > 8500 and line_number % 5 == 0) or (line_number > 9500) :
+#                 if line.strip():  # Ignore empty lines
+#                     line = line[4:-2]  # Remove "map[" from start and "]" from end
+#                     pairs = line.split()  # Split by whitespace
+#                     x_value = 10000 - sum(float(pair.split(':')[1]) for pair in pairs)  # Sum of Z values for X
+#                     pair_data = []
+#                     for pair in pairs:
+#                         split_pair = pair.split(':')
+#                         key = float(split_pair[0]) 
+#                         value = float(split_pair[1])
+#                         pair_data.append((key,value)) 
+#                     data_dict[x_value] = pair_data # there was a bug that there where multiple instences of the same depth, this is why we need this
+
+#     x = []
+#     y = []
+#     z = []
+
+#     for x_val, arr in data_dict.items():
+#         for (y_val,z_val) in arr:
+#             x.append(x_val)
+#             y.append(y_val)  
+#             z.append(z_val)
+
+#     y = np.log10(y)
+#     z = np.log10(z)
+#     x = np.array(x,dtype=int)
+#     y = np.array(y,dtype=float)
+#     z = np.array(z,dtype=float)
+
+#     triang = Triangulation(x, y)
+
+
+#     tri_analyzer = TriAnalyzer(triang)
+#     valid_triangles = []
+#     for i in range(len(triang.triangles)):
+#         tri_vertices = triang.triangles[i]
+#         y_coords = y[tri_vertices]
+#         x_coords = y[tri_vertices]
         
-        y_distance = np.max(y_coords) - np.min(y_coords)
-        x_distance = np.max(x_coords) - np.min(x_coords)
+#         y_distance = np.max(y_coords) - np.min(y_coords)
+#         x_distance = np.max(x_coords) - np.min(x_coords)
 
-        if (x_distance < 50 and y_distance < 0.5) or (x[tri_vertices] > 9500).all():
-            valid_triangles.append(i)
-
-
-    filtered_triangles = triang.triangles[valid_triangles]
-
-    ax4.plot_trisurf(x,y,z,triangles=filtered_triangles, cmap='viridis')
+#         if (x_distance < 50 and y_distance < 0.5) or (x[tri_vertices] > 9500).all():
+#             valid_triangles.append(i)
 
 
-    ax4.set_xlim3d(0,11000)
-    ax4.set_ylim3d(max(y),min(y))
-    ax4.set_title(deg_names[os.path.basename(file_name)])
-    ax4.zaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-    ax4.zaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    ax4.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-    ax4.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+#     filtered_triangles = triang.triangles[valid_triangles]
+
+#     ax4.plot_trisurf(x,y,z,triangles=filtered_triangles, cmap='viridis')
+
+
+#     ax4.set_xlim3d(0,11000)
+#     ax4.set_ylim3d(max(y),min(y))
+#     ax4.set_title(deg_names[os.path.basename(file_name)])
+#     ax4.zaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+#     ax4.zaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+#     ax4.yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+#     ax4.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
 
 
 # # Adjust layout and show the plots
