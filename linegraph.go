@@ -493,26 +493,19 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 
 	self_list := context.restrictions[v_s]
 	delete(context.restrictions, v_s)
-	var prev_lengths map[uint64]float64 = make(map[uint64]float64)
-	for i := range context.restrictions {
-		prev_lengths[i] = float64(len(context.restrictions[i]))
-	}
 	inverse_restrictions, empty := UpdateRestrictions(context, v_g, v_s)
-	var lengths map[uint64]float64 = make(map[uint64]float64)
-	for i := range context.restrictions {
-		lengths[i] = float64(len(context.restrictions[i]))
-	}
-	reduction_file.WriteString(fmt.Sprintf("%v,%v\n", len(context.chosen), calculateFactor(lengths, prev_lengths)))
 	inverse_restrictions[v_s] = self_list
 	if !empty {
 		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior, context.prior_policy)
 
 		//debug
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
-		logging_mu.Lock()
-		branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
-		branching_counter[len(context.chosen)]++
-		logging_mu.Unlock()
+		if branching_file != nil {
+			logging_mu.Lock()
+			branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
+			branching_counter[len(context.chosen)]++
+			logging_mu.Unlock()
+		}
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
