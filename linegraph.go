@@ -35,6 +35,7 @@ type context struct {
 	path         map[uint64]uint64
 	chosen       map[uint64]void
 	prior        map[uint64]float32
+	prior_policy int
 }
 
 type metric struct {
@@ -42,7 +43,6 @@ type metric struct {
 	calls uint64
 }
 
-var prior_policy *int
 var recolor_policy *int
 var output_file *os.File
 var depth_file *os.File
@@ -68,7 +68,7 @@ func main() {
 	out_fname := flag.String("out", "dat/output.txt", "output location")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
-	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
+	prior_policy := flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
 	subset_size := flag.Int64("subset", -1, "take as subset of this size from G, to be the Subgraph")
 	print_subset := flag.Bool("subout", false, "if subset, output it at that folder")
 	recolor_policy = flag.Int("recolor", -1, "recolor value policy, defualt is base on read,else is rand.N")
@@ -208,7 +208,7 @@ func main() {
 	}
 
 	start := time.Now()
-	var matches uint64 = FindAll(G, S, prior)
+	var matches uint64 = FindAll(G, S, prior, *prior_policy)
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
@@ -306,7 +306,7 @@ func graphSubset(Graph graph, subset map[uint64]void) graph {
 	return cpy
 }
 
-func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
+func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32, prior_policy int) uint64 {
 	//we want the max number of errors, but also min length
 	max_score := float32(0)
 	idx := ^uint64(0)
@@ -322,7 +322,7 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 			if len(restrictions[u]) <= 1 {
 				return u
 			}
-			score := RestrictionScore(restrictions, prior, u)
+			score := RestrictionScore(restrictions, prior, u, prior_policy)
 			if score > max_score {
 				max_score = score
 				idx = u
@@ -339,8 +339,8 @@ func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]v
 	return idx
 }
 
-func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
-	if *prior_policy == 3 || *prior_policy == 2 || *prior_policy == 1 {
+func ChooseStart(Subgraph graph, prior map[uint64]float32, prior_policy int) uint64 {
+	if prior_policy == 3 || prior_policy == 2 || prior_policy == 1 {
 		max_deg := 0
 		idx := ^uint64(0)
 		for u := range Subgraph {
@@ -354,7 +354,7 @@ func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 	max_score := float32(0)
 	idx := ^uint64(0)
 	for u := range Subgraph {
-		score := RestrictionScore[uint64](nil, prior, u)
+		score := RestrictionScore[uint64](nil, prior, u, prior_policy)
 		if score > max_score {
 			max_score = score
 			idx = u
@@ -363,8 +363,8 @@ func ChooseStart(Subgraph graph, prior map[uint64]float32) uint64 {
 	return idx
 }
 
-func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]float32, u uint64) float32 {
-	switch *prior_policy {
+func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]float32, u uint64, prior_policy int) float32 {
+	switch prior_policy {
 	case 0:
 		return prior[u]
 	case 1:
@@ -383,7 +383,7 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 	return 0
 }
 
-func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
+func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32, prior_policy int) uint64 {
 	var wg sync.WaitGroup
 	var ops atomic.Uint64
 	// t := time.Now()
@@ -418,7 +418,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 	calls = 0
 	start_time = time.Now()
 	//functionality
-	v_0 := ChooseStart(Subgraph, prior)
+	v_0 := ChooseStart(Subgraph, prior, prior_policy)
 	for u := range Graph {
 		if Graph[u].attribute.color == Subgraph[v_0].attribute.color && len(Graph[u].neighborhood) >= len(Subgraph[v_0].neighborhood) {
 			wg.Add(1)
@@ -428,12 +428,16 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32) uint64 {
 				path:         make(map[uint64]uint64),
 				chosen:       make(map[uint64]void),
 				prior:        prior,
+				prior_policy: prior_policy,
 			}
-			go func(u uint64) {
+			func(u uint64) {
 				ret := RecursionSearch(&context, u, v_0)
 				ops.Add(uint64(ret))
 				wg.Done()
 			}(u)
+		}
+		if ops.Load() > 0 {
+			return ops.Load()
 		}
 		if u%512 == 0 {
 			wg.Wait()
@@ -501,7 +505,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 	reduction_file.WriteString(fmt.Sprintf("%v,%v\n", len(context.chosen), calculateFactor(lengths, prev_lengths)))
 	inverse_restrictions[v_s] = self_list
 	if !empty {
-		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior)
+		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior, context.prior_policy)
 
 		//debug
 		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
@@ -512,6 +516,10 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
+			fmt.Println("ret ", ret)
+			if ret > 0 {
+				return ret
+			}
 		}
 		// ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, chosen)
 	}
