@@ -509,10 +509,10 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		//functionality
 		for u_instance := range context.restrictions[new_v_s] {
 			ret += RecursionSearch(context, u_instance, new_v_s)
-			fmt.Println("ret ", ret)
-			if ret > 0 {
-				return ret
-			}
+			// fmt.Println("ret ", ret)
+			// if ret > 0 {
+			// 	return ret
+			// }
 		}
 		// ret += MinRestrictionsCall(Graph, Subgraph, restrictions, path, chosen)
 	}
