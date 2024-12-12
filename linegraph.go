@@ -69,7 +69,6 @@ func main() {
 	profile := flag.Bool("prof", false, "profile the program")
 	depth_log := flag.String("depth", "", "fname to log the deapth over time")
 	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
-	sparse := flag.Float64("sparse", 0, "sparsify the subgraph")
 
 	flag.Parse()
 
@@ -119,7 +118,6 @@ func main() {
 		for int64(len(S)) < *subset_size { //in golang this is a while loop
 			S = reduceGraph(G, int(*subset_size))
 		}
-		S = Sparsify(S, float32(*sparse))
 		if *print_subset {
 			printGraph(S, "dat/subgraphs/sub")
 		}
@@ -160,31 +158,6 @@ func reduceGraph(Graph graph, size int) graph {
 	return graphSubset(Graph, subset)
 }
 
-func Sparsify(G graph, p float32) graph {
-	total := 0
-	for v := range G {
-		total += len(G[v].neighborhood)
-	}
-	fmt.Println("S total", total)
-
-	mst := minimumSpanningTree(G, randomVertex(G))
-
-	for u := range G {
-		for v := range G[u].neighborhood {
-			if u > v && rand.Float32() > p { //keep edge at prob 1-p
-				mst.AddEdge(u, v)
-			}
-		}
-	}
-
-	total = 0
-	for v := range mst {
-		total += len(mst[v].neighborhood)
-	}
-	fmt.Println("sparse total", total)
-
-	return mst
-}
 func sizeBFS(Graph graph, node uint64, visited map[uint64]void, component map[uint64]void, k *int) {
 	queue := make(map[uint64]void)
 	for neighbor := range Graph[node].neighborhood {
@@ -574,30 +547,6 @@ func ConnectedComponents(Graph graph, subset map[uint64]void) []map[uint64]void 
 	}
 
 	return components
-}
-
-func minimumSpanningTree(G graph, start uint64) graph {
-	visited := make(map[uint64]bool)
-	mst := make(graph)
-	var dfs func(uint64)
-
-	for v := range G {
-		mst.AddVertex(v, G[v].attribute.color)
-	}
-	dfs = func(v uint64) {
-		visited[v] = true
-
-		for u := range G[v].neighborhood {
-			if !visited[u] {
-				// Add this edge to the MST
-				mst.AddEdge(v, u)
-				dfs(u)
-			}
-		}
-	}
-
-	dfs(start)
-	return mst
 }
 
 func printDepths(depths map[uint64]metric, file *os.File) {
