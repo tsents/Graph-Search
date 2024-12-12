@@ -158,29 +158,7 @@ func main() {
 		}
 		S = Sparsify(S, float32(*sparse))
 		if *print_subset {
-			if err := os.MkdirAll("dat/subgraphs/sub", os.ModePerm); err != nil {
-				panic(err)
-			}
-			sub_vertecies, err := os.Create("dat/subgraphs/sub/sub.node_labels")
-			if err != nil {
-				panic(err)
-			}
-			for v := range S {
-				fmt.Fprintln(sub_vertecies, v, S[v].attribute.color)
-			}
-			sub_vertecies.Close()
-			sub_edges, err := os.Create("dat/subgraphs/sub/sub.edges")
-			if err != nil {
-				panic(err)
-			}
-			for v := range S {
-				for u := range S[v].neighborhood {
-					if u >= v {
-						fmt.Fprintln(sub_edges, v, u)
-					}
-				}
-			}
-			sub_edges.Close()
+			printGraph(S, "dat/subgraphs/sub")
 		}
 	}
 	fmt.Println(len(G), len(S))
@@ -474,7 +452,16 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		// }
 	}
 	logging_mu.Unlock()
-
+	// if len(context.chosen) == 8700 {
+	// 	printGraph(graphSubset(context.Subgraph, context.chosen), "dat/subgraphs/partial_s")
+	// 	var m map[uint64]void = make(map[uint64]void)
+	// 	for _, v := range context.path {
+	// 		m[v] = void{}
+	// 	}
+	// 	fmt.Println("about to print G")
+	// 	printGraph(graphSubset(context.Graph, m), "dat/subgraphs/partial_g")
+	// 	os.Exit(0)
+	// }
 	//functionality
 	if _, ok := context.path[v_g]; ok {
 		return 0
@@ -499,7 +486,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		new_v_s := ChooseNext(context.restrictions, context.chosen, context.Subgraph, context.prior, context.prior_policy)
 
 		//debug
-		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions))
+		fmt.Println("depth", len(context.chosen), "target size", len(context.restrictions[new_v_s]), "open", len(context.restrictions), "deg", len(context.Subgraph[new_v_s].neighborhood))
 		if branching_file != nil {
 			logging_mu.Lock()
 			branching[len(context.chosen)] += float32(len(context.restrictions[new_v_s]))
@@ -722,4 +709,30 @@ func calculateFactor(lengths map[uint64]float64, prev_lengths map[uint64]float64
 		}
 	}
 	return product
+}
+
+func printGraph(G graph, dir string) {
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		panic(err)
+	}
+	sub_vertecies, err := os.Create(dir + "/sub.node_labels")
+	if err != nil {
+		panic(err)
+	}
+	for v := range G {
+		fmt.Fprintln(sub_vertecies, v, G[v].attribute.color)
+	}
+	sub_vertecies.Close()
+	sub_edges, err := os.Create(dir + "/sub.edges")
+	if err != nil {
+		panic(err)
+	}
+	for v := range G {
+		for u := range G[v].neighborhood {
+			if u >= v {
+				fmt.Fprintln(sub_edges, v, u)
+			}
+		}
+	}
+	sub_edges.Close()
 }
