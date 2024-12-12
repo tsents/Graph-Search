@@ -50,12 +50,6 @@ var branching_file *os.File
 var branching []float32
 var logging_mu sync.Mutex
 var branching_counter []float32
-var hair_counter []uint64
-var hair_file *os.File
-var crit_log *int
-var crit_file *os.File
-var deg_file *os.File
-var reduction_file *os.File
 var calls uint64
 var start_time time.Time
 var depths map[uint64]metric
@@ -75,11 +69,6 @@ func main() {
 	profile := flag.Bool("prof", false, "profile the program")
 	depth_log := flag.String("depth", "", "fname to log the deapth over time")
 	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
-	crit_log = flag.Int("crit", -1, "log the degrees at given critical point in the algorithm")
-	crit_fname := flag.String("critfile", "", "fname for the file for the crit option")
-	hair_log := flag.String("hair", "", "fname to log the number of vertecies with small degree that are left to choose vs algorithm depth")
-	degs_log := flag.String("deg", "", "fname to log the degree distribution")
-	reduction_log := flag.String("factor", "", "fname to reduction factor")
 	sparse := flag.Float64("sparse", 0, "sparsify the subgraph")
 
 	flag.Parse()
@@ -111,37 +100,11 @@ func main() {
 			panic(err)
 		}
 	}
-	if *crit_fname != "" {
-		crit_file, err = os.Create(*crit_fname)
-		if err != nil {
-			panic(err)
-		}
-	}
 	if *branching_log != "" {
 		branching_file, err = os.Create(*branching_log)
 		if err != nil {
 			panic(err)
 		}
-	}
-	if *hair_log != "" {
-		hair_file, err = os.Create(*hair_log)
-		if err != nil {
-			panic(err)
-		}
-	}
-	if *degs_log != "" {
-		deg_file, err = os.Create(*degs_log)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	if *reduction_log != "" {
-		reduction_file, err = os.Create(*reduction_log)
-		if err != nil {
-			panic(err)
-		}
-		reduction_file.WriteString("Depth,Factor\n")
 	}
 
 	gra_fname := flag.Args()[0]
@@ -190,24 +153,6 @@ func main() {
 	algo_time := time.Since(start)
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
-}
-
-func degDist(Graph graph, inv_subset map[uint64]void, file *os.File) {
-	if inv_subset == nil {
-		bins := make(map[uint64]uint64)
-		for _, v := range Graph {
-			bins[uint64(len(v.neighborhood))] += 1
-		}
-		file.WriteString(fmt.Sprintf("%v\n", bins))
-		return
-	}
-	bins := make(map[uint64]uint64)
-	for v := range Graph {
-		if _, ok := inv_subset[v]; !ok {
-			bins[uint64(len(Graph[v].neighborhood))] += 1
-		}
-	}
-	file.WriteString(fmt.Sprintf("%v\n", bins))
 }
 
 func reduceGraph(Graph graph, size int) graph {
@@ -371,11 +316,7 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32, prior_policy
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGINT)
 	branching = make([]float32, len(Subgraph))
-	if hair_file == nil {
-		hair_counter = nil
-	} else {
-		hair_counter = make([]uint64, len(Subgraph))
-	}
+
 	branching_counter = make([]float32, len(Subgraph))
 	go func() {
 		for sig := range c {
@@ -385,7 +326,6 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32, prior_policy
 				logging_mu.Lock()
 				printDepths(depths, depth_file)
 				printBranching(branching, branching_file)
-				hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 				logging_mu.Unlock()
 				pprof.StopCPUProfile()
 				os.Exit(0)
@@ -424,7 +364,6 @@ func FindAll(Graph graph, Subgraph graph, prior map[uint64]float32, prior_policy
 	wg.Wait()
 	printBranching(branching, branching_file)
 	printDepths(depths, depth_file)
-	hair_file.WriteString(fmt.Sprintf("%v\n", hair_counter))
 	return ops.Load()
 }
 
@@ -436,20 +375,6 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		if _, ok := depths[uint64(len(context.chosen))]; !ok {
 			depths[uint64(len(context.chosen))] = metric{time.Since(start_time), calls}
 		}
-	}
-	if len(context.chosen) == *crit_log {
-		degDist(context.Subgraph, context.chosen, crit_file)
-		*crit_log = -1
-	}
-
-	if hair_counter != nil && hair_counter[len(context.chosen)] == 0 {
-		degDist(context.Subgraph, context.chosen, deg_file)
-		hair_counter[len(context.chosen)] = 1
-		// for v := range context.chosen {
-		// 	if len(context.Subgraph[v].neighborhood) < 4 {
-		// 		hair_counter[len(context.chosen)]++
-		// 	}
-		// }
 	}
 	logging_mu.Unlock()
 	// if len(context.chosen) == 8700 {
@@ -699,16 +624,6 @@ func randomVertex(Graph graph) uint64 {
 		r--
 	}
 	panic("no random")
-}
-
-func calculateFactor(lengths map[uint64]float64, prev_lengths map[uint64]float64) float64 {
-	var product float64 = 1
-	for i := range lengths {
-		if _, ok := prev_lengths[i]; ok {
-			product = product * lengths[i] / prev_lengths[i]
-		}
-	}
-	return product
 }
 
 func printGraph(G graph, dir string) {
