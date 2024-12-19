@@ -15,19 +15,24 @@ import (
 	"time"
 )
 
+// empty struct used as a placeholder in maps
 type void struct{}
 
+// graph represents a graph where the key is a vertex id and the value is a vertex
 type graph map[uint64]vertex
 
+// vertex represents a node in the graph with an attribute (as the graph is colored) and a neighborhood
 type vertex struct {
 	attribute    att
 	neighborhood map[uint64]void
 }
 
+// att represents the attributes of a vertex, currently only color
 type att struct {
 	color uint32
 }
 
+// context holds the state of the graph search algorithm, and is passed around to the recursive function
 type context struct {
 	Graph        graph
 	Subgraph     graph
@@ -38,11 +43,13 @@ type context struct {
 	prior_policy int
 }
 
+// metric type is for the depth logging
 type metric struct {
 	time  time.Duration
 	calls uint64
 }
 
+// global variables for debug purposes, only used for graph reading configuration and logging
 var recolor_policy *int
 var output_file *os.File
 var depth_file *os.File
@@ -54,11 +61,13 @@ var calls uint64
 var start_time time.Time
 var depths map[uint64]metric
 
-func main() {
-	runtime.GOMAXPROCS(32)                        //regularization, keeps cpu under control
-	debug.SetMaxStack(10 * 128 * 1024 * 1024)     //GBit
-	debug.SetMemoryLimit(200 * 128 * 1024 * 1024) //GBit
+func init() { // runs before main, sets up the environment
+	runtime.GOMAXPROCS(32)                        // regularization, keeps CPU under control
+	debug.SetMaxStack(10 * 128 * 1024 * 1024)     // GBit
+	debug.SetMemoryLimit(200 * 128 * 1024 * 1024) // GBit
+}
 
+func main() {
 	out_fname := flag.String("out", "dat/output.txt", "output location")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
@@ -69,23 +78,18 @@ func main() {
 	profile := flag.Bool("prof", false, "profile the program")
 	depth_log := flag.String("depth", "", "fname to log the deapth over time")
 	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
+	sparse := flag.Float64("sparse", 0, "sparsify the subgraph")
 
 	flag.Parse()
 
 	if *profile {
-		f, err := os.Create("cpu.pprof")
-		if err != nil {
-			panic(err)
-		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			panic(err)
-		}
+		startProfile()
 		defer pprof.StopCPUProfile()
 	}
 
-	fmt.Println("output ->", *out_fname)
-	fmt.Println("parsing :", *input_parse)
-	fmt.Println("prior :", *prior_policy)
+	printFlags(out_fname, input_parse, prior_policy)
+
+	// creating all the files for logging perposes
 	var err error
 	output_file, err = os.Create(*out_fname)
 	if err != nil {
@@ -98,7 +102,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		defer depth_file.Close()
 	}
+
 	if *branching_log != "" {
 		branching_file, err = os.Create(*branching_log)
 		if err != nil {
@@ -106,74 +112,156 @@ func main() {
 		}
 	}
 
-	gra_fname := flag.Args()[0]
+	// reading the graphs, based on the given format
+	graph_fname := flag.Args()[0]
+	G := ReadGraph(graph_fname, *input_fmt, *input_parse)
 
-	G := ReadGraph(gra_fname, *input_fmt, *input_parse)
-	var S graph
-	if *subset_size == -1 {
-		sub_fname := flag.Args()[1]
-		S = ReadGraph(sub_fname, *input_fmt, *input_parse)
-	} else {
-		S = reduceGraph(G, int(*subset_size))
-		for int64(len(S)) < *subset_size { //in golang this is a while loop
-			S = reduceGraph(G, int(*subset_size))
-		}
-		if *print_subset {
-			printGraph(S, "dat/subgraphs/sub")
-		}
-	}
+	S := getSubgraph(G, subset_size, print_subset, input_fmt, input_parse)
+	S = Sparsify(S, float32(*sparse))
+
 	fmt.Println(len(G), len(S))
 
-	prior := make(map[uint64]float32)
-	switch *prior_policy {
-	case 0: //d^2 in S
-		for v := range S {
-			// prior[v] += float32(len(Subgraph[v].neighborhood))
-			for u := range S[v].neighborhood {
-				prior[v] += float32(len(S[u].neighborhood))
-			}
-		}
-	case 1: //d^2 in G
-		for v := range G {
-			// prior[v] += float32(len(Graph[v].neighborhood))
-			for u := range G[v].neighborhood {
-				prior[v] += float32(len(G[u].neighborhood))
-			}
-		}
-	case 4: //d in S
-		for v := range S {
-			prior[v] = float32(len(S[v].neighborhood))
-		}
-	}
+	prior := calculatePrior(S, G, *prior_policy)
 
 	start := time.Now()
-	var matches uint64 = FindAll(G, S, prior, *prior_policy)
+	matches := FindAll(G, S, prior, *prior_policy)
 	algo_time := time.Since(start)
+
 	fmt.Println("done", algo_time.Seconds())
 	fmt.Println("matches", matches)
 }
 
-func reduceGraph(Graph graph, size int) graph {
-	subset := connectedComponentOfSizeK(Graph, randomVertex(Graph), size)
-	return graphSubset(Graph, subset)
+func startProfile() {
+	f, err := os.Create("cpu.pprof")
+	if err != nil {
+		panic(err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
 }
 
-func sizeBFS(Graph graph, node uint64, visited map[uint64]void, component map[uint64]void, k *int) {
-	queue := make(map[uint64]void)
-	for neighbor := range Graph[node].neighborhood {
-		if _, ok := visited[neighbor]; !ok {
-			*k -= 1
-			queue[neighbor] = void{}
-			component[neighbor] = void{}
-			visited[neighbor] = void{}
-			if *k <= 0 {
-				return
+func printFlags(out_fname, input_parse *string, prior_policy *int) {
+	fmt.Println("output ->", *out_fname)
+	fmt.Println("parsing :", *input_parse)
+	fmt.Println("prior :", *prior_policy)
+}
+
+func getSubgraph(G graph, subset_size *int64, print_subset *bool, input_fmt, input_parse *string) graph {
+	if *subset_size == -1 { // subset size is not given, so we dont create the subgraph from G
+		sub_fname := flag.Args()[1]
+		return ReadGraph(sub_fname, *input_fmt, *input_parse)
+	}
+	// special option to create S from G and optionally print it
+	S := reduceGraph(G, int(*subset_size))
+	for int64(len(S)) < *subset_size {
+		S = reduceGraph(G, int(*subset_size))
+	}
+	if *print_subset {
+		printGraph(S, "dat/subgraphs/sub")
+	}
+	return S
+}
+
+func calculatePrior(S, G graph, prior_policy int) map[uint64]float32 {
+	prior := make(map[uint64]float32)
+	switch prior_policy {
+	case 0: // d^2 in S
+		for v := range S {
+			for u := range S[v].neighborhood {
+				prior[v] += float32(len(S[u].neighborhood))
+			}
+		}
+	case 1: // d^2 in G
+		for v := range G {
+			for u := range G[v].neighborhood {
+				prior[v] += float32(len(G[u].neighborhood))
+			}
+		}
+	case 4: // d in S
+		for v := range S {
+			prior[v] = float32(len(S[v].neighborhood))
+		}
+	}
+	return prior
+}
+
+func minimumSpanningTree(G graph, start uint64) graph {
+	visited := make(map[uint64]bool)
+	mst := make(graph)
+	var dfs func(uint64)
+
+	for v := range G {
+		mst.AddVertex(v, G[v].attribute.color)
+	}
+	dfs = func(v uint64) {
+		visited[v] = true
+
+		for u := range G[v].neighborhood {
+			if !visited[u] {
+				// Add this edge to the MST
+				mst.AddEdge(v, u)
+				dfs(u)
 			}
 		}
 	}
-	for neighbor := range queue {
-		if *k > 0 {
-			sizeBFS(Graph, neighbor, visited, component, k)
+
+	dfs(start)
+	return mst
+}
+
+func Sparsify(G graph, p float32) graph {
+	total := 0
+	for v := range G {
+		total += len(G[v].neighborhood)
+	}
+	fmt.Println("S total", total)
+
+	mst := minimumSpanningTree(G, randomVertex(G))
+
+	for u := range G {
+		for v := range G[u].neighborhood {
+			if u > v && rand.Float32() > p { //keep edge at prob 1-p
+				mst.AddEdge(u, v)
+			}
+		}
+	}
+
+	total = 0
+	for v := range mst {
+		total += len(mst[v].neighborhood)
+	}
+	fmt.Println("sparse total", total)
+
+	return mst
+}
+
+func reduceGraph(Graph graph, size int) graph {
+	// create a subbgraph from the graph G, by trying a BFS from a random vertex. if fails to get the size then create from G's largest component.
+	subset := connectedComponentOfSizeK(Graph, randomVertex(Graph), size)
+	return graphSubset(Graph, subset) //return as graph
+}
+
+func sizeBFS(Graph graph, node uint64, visited map[uint64]void, component map[uint64]void, k int) {
+	// BFS with up to k nodes, to get a component of size k, we use k* to make sure we don't go over the limit
+	queue := []uint64{node}
+
+	for len(queue) > 0 && k > 0 {
+		// fmt.Println("queue", len(queue), "k", k)
+		current := queue[0]
+		queue = queue[1:]
+
+		for neighbor := range Graph[current].neighborhood {
+			if _, ok := visited[neighbor]; !ok {
+				k -= 1
+				queue = append(queue, neighbor)
+				component[neighbor] = void{}
+				visited[neighbor] = void{}
+				if k <= 0 {
+					// fmt.Println("return from queue", len(queue), "k", k)
+					return
+				}
+			}
 		}
 	}
 }
@@ -183,12 +271,12 @@ func connectedComponentOfSizeK(Graph graph, startNode uint64, k int) map[uint64]
 	component := make(map[uint64]void)
 	visited[startNode] = void{}
 	component[startNode] = void{}
-	k -= 1
-	sizeBFS(Graph, startNode, visited, component, &k)
+	sizeBFS(Graph, startNode, visited, component, k)
 	return component
 }
 
 func graphSubset(Graph graph, subset map[uint64]void) graph {
+	// given a subset of the graph, create a new graph with only the subset of vertecies and all edges between them in G
 	cpy := make(graph)
 	for v := range subset {
 		new_neighborhood := make(map[uint64]void)
@@ -350,17 +438,7 @@ func RecursionSearch(context *context, v_g uint64, v_s uint64) int {
 		}
 	}
 	logging_mu.Unlock()
-	// if len(context.chosen) == 8700 {
-	// 	printGraph(graphSubset(context.Subgraph, context.chosen), "dat/subgraphs/partial_s")
-	// 	var m map[uint64]void = make(map[uint64]void)
-	// 	for _, v := range context.path {
-	// 		m[v] = void{}
-	// 	}
-	// 	fmt.Println("about to print G")
-	// 	printGraph(graphSubset(context.Graph, m), "dat/subgraphs/partial_g")
-	// 	os.Exit(0)
-	// }
-	//functionality
+
 	if _, ok := context.path[v_g]; ok {
 		return 0
 	}
