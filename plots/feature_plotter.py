@@ -4,7 +4,7 @@ import numpy as np
 
 data_list = []
 
-files = [f'dat/IMDB-new-dat/branching{i}.csv' for i in range(5)]
+files = [f'dat/IMDB/branching{i}.csv' for i in range(5)]
 
 colors = ['b', 'g', 'r', 'c', 'm'] 
 names = [
@@ -19,7 +19,7 @@ plt.figure(figsize=(10, 6))
 
 for i, file_path in enumerate(files):
     df = pd.read_csv(file_path)
-    df = df[df["Depth"] > 39000]
+    df = df[df["Depth"] > 78000]
     df['BranchingFactor'] = np.log10(df['BranchingFactor'])
     df['FeatureCost'] = df.apply(lambda row: df[df['Depth'] > row['Depth']]['BranchingFactor'].mean(), axis=1)
     print("easy")
@@ -29,7 +29,7 @@ for i, file_path in enumerate(files):
 # Customize the plot
 plt.title('Current cost vs Average Feature cost')
 plt.xlabel('Branching Factor')
-plt.ylabel('Mean Feature Branching Cost')
+plt.ylabel('Mean Future Branching Cost')
 plt.legend(title='Files')  # Show legend to identify each line
 plt.grid(True)
 

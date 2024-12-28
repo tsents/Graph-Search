@@ -79,6 +79,9 @@ func main() {
 	depth_log := flag.String("depth", "", "fname to log the deapth over time")
 	branching_log := flag.String("branching", "", "fname to  log the branching factor over time")
 	sparse := flag.Float64("sparse", 0, "sparsify the subgraph")
+	gnp := flag.Bool("gnp", false, "generate a random graph using Gnp")
+	n := flag.Uint64("n", 0, "number of vertices for Gnp")
+	p := flag.Float64("p", 0.0, "probability for edge creation in Gnp")
 
 	flag.Parse()
 
@@ -112,14 +115,35 @@ func main() {
 		}
 	}
 
-	// reading the graphs, based on the given format
-	graph_fname := flag.Args()[0]
-	G := ReadGraph(graph_fname, *input_fmt, *input_parse)
+	var G graph
+	if *gnp {
+		G = Gnp(*n, float32(*p))
+	} else {
+		graph_fname := flag.Args()[0]
+		G = ReadGraph(graph_fname, *input_fmt, *input_parse)
+	}
 
 	S := getSubgraph(G, subset_size, print_subset, input_fmt, input_parse)
 	S = Sparsify(S, float32(*sparse))
 
 	fmt.Println(len(G), len(S))
+
+	var wg sync.WaitGroup
+	if *prior_policy == 5 {
+		wg.Add(2)
+		prior := calculatePrior(S, G, 0)
+		go func() {
+			FindAll(G, S, prior, 0)
+			wg.Done()
+		}()
+		prior = calculatePrior(S, G, 4)
+		go func() {
+			FindAll(G, S, prior, 4)
+			wg.Done()
+		}()
+		wg.Wait()
+		return
+	}
 
 	prior := calculatePrior(S, G, *prior_policy)
 
@@ -525,6 +549,7 @@ func UpdateRestrictions(context *context, v_g uint64, v_s uint64) (map[uint64]ma
 	wg.Wait()
 	return inverse_restrictions, empty
 }
+
 func SingleUpdate(context *context, u uint64, v_g uint64, single_inverse *map[uint64]void, single_rest *map[uint64]void) {
 	if *single_rest == nil {
 		*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))

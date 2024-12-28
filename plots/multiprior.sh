@@ -9,5 +9,5 @@ priors="01234"
 # Loop over each character in the string
 for digit in $(echo $priors | fold -w1); do
     mkdir -p dat/$fname
-    timeout -s SIGINT 12m ./subgraph_isomorphism -fmt=folder -factor=dat/$fname/factor$digit.csv -parse="%d %d" -prior=$digit inputs/$fname inputs/$fname-sub/ > log.txt
+    timeout -s SIGINT 2m ./subgraph_isomorphism -fmt=folder -branching=dat/$fname/branching$digit.csv -depth=dat/$fname/depth$digit.csv -parse="%d %d" -prior=$digit inputs/$fname inputs/$fname-sub/ > log.txt
 done

@@ -5,7 +5,7 @@ import glob
 import numpy as np
 
 # Define the directory containing the CSV files
-directory_path = 'dat/IMDB-new-dat/'
+directory_path = 'dat/IMDB/'
 depth_file_pattern = os.path.join(directory_path, 'depth*.csv')
 branching_file_pattern = os.path.join(directory_path, 'branching*.csv')
 
@@ -40,41 +40,41 @@ deg_names = {
 }
 
 # Loop through each depth file matching the pattern
-# for file_path in glob.glob(depth_file_pattern):
-#     largest_df = None
-#     max_rows = 0
+for file_path in glob.glob(depth_file_pattern):
+    largest_df = None
+    max_rows = 0
     
-#     with open(file_path, 'r') as file:
-#         current_df = []
-#         header = None
+    with open(file_path, 'r') as file:
+        current_df = []
+        header = None
         
-#         for line in file:
-#             stripped_line = line.strip()
+        for line in file:
+            stripped_line = line.strip()
             
-#             if stripped_line.startswith('Depth'):
-#                 if current_df and header is not None:
-#                     temp_df = pd.DataFrame(current_df, columns=header)
-#                     if len(temp_df) > max_rows:
-#                         largest_df = temp_df
-#                         max_rows = len(temp_df)
+            if stripped_line.startswith('Depth'):
+                if current_df and header is not None:
+                    temp_df = pd.DataFrame(current_df, columns=header)
+                    if len(temp_df) > max_rows:
+                        largest_df = temp_df
+                        max_rows = len(temp_df)
                 
-#                 header = stripped_line.split(',')
-#                 current_df = []
-#             elif stripped_line:
-#                 current_df.append(stripped_line.split(','))
+                header = stripped_line.split(',')
+                current_df = []
+            elif stripped_line:
+                current_df.append(stripped_line.split(','))
         
-#         if current_df and header is not None:
-#             temp_df = pd.DataFrame(current_df, columns=header)
-#             if len(temp_df) > max_rows:
-#                 largest_df = temp_df
+        if current_df and header is not None:
+            temp_df = pd.DataFrame(current_df, columns=header)
+            if len(temp_df) > max_rows:
+                largest_df = temp_df
 
-#     largest_df['Depth'] = pd.to_numeric(largest_df['Depth'])
-#     largest_df['Time'] = pd.to_timedelta(largest_df['Time'])  # Convert Time to timedelta
-#     largest_df.sort_values(by='Depth', inplace=True)
-#     largest_df = largest_df[largest_df['Depth'] >= 0]
+    largest_df['Depth'] = pd.to_numeric(largest_df['Depth'])
+    largest_df['Time'] = pd.to_timedelta(largest_df['Time'])  # Convert Time to timedelta
+    largest_df.sort_values(by='Depth', inplace=True)
+    largest_df = largest_df[largest_df['Depth'] >= 0]
 
-#     if largest_df is not None:
-#         depth_dataframes.append((largest_df, os.path.basename(file_path)))
+    if largest_df is not None:
+        depth_dataframes.append((largest_df, os.path.basename(file_path)))
 
 # Loop through each branching factor file matching the pattern
 for file_path in glob.glob(branching_file_pattern):
@@ -97,7 +97,7 @@ for df, file_name in depth_dataframes:
     max_x = df['Depth'].max()
     ax1.axvline(x=max_x, linestyle='dotted', color='gray')
 
-ax1.set_xscale('log')
+ax1.set_xscale('linear')
 ax1.set_title('Depth vs Time')
 ax1.set_xlabel('Depth')
 ax1.set_ylabel('Time (seconds)')
@@ -109,7 +109,7 @@ for df, file_name in branching_dataframes:
     label = branching_legend_mapping.get(file_name, file_name)
     ax2.plot(df['Depth'], df['BranchingFactor'], label=label)
 
-ax2.set_xscale('log')
+ax2.set_xscale('linear')
 ax2.set_title('Branching Factor vs Depth in Log Scale')
 ax2.set_xlabel('Depth')
 ax2.set_ylabel('Branching Factor')
