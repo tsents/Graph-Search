@@ -39,6 +39,7 @@ type context struct {
 var prior_policy *int
 var output_file *os.File
 var directed *bool
+var induced *bool
 var Finf float32 = math.Float32frombits(0x7F800000)
 
 func main() {
@@ -51,6 +52,7 @@ func main() {
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
 	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
 	directed = flag.Bool("directed", false, "change to directed graphs, default is automaticly undirected")
+	induced = flag.Bool("induced", false, "change to induced subgraph, default is automaticly non-induced")
 	flag.Parse()
 
 	fmt.Println("output ->", *out_fname)
@@ -269,22 +271,23 @@ func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inv
 		*single_inverse = make(map[uint64]void)
 		(*single_inverse)[^uint64(0)] = void{}
 		if !*directed {
-			*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color)
+			*single_rest = ColoredNeighborhood(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood))
 			return
 		}
 
 		//directed
-		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok {
-			*single_rest = ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color)
+		if _, ok := context.Subgraph[v_s].neighborhood_out[u]; ok { //if v_s has an edge to u
+			*single_rest = ColoredNeighborhoodOut(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood_out))
 		}
-		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok {
-			if _, ok := context.Subgraph[v_s].neighborhood_out[u]; !ok {
-				*single_rest = ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)
+		if _, ok := context.Subgraph[v_s].neighborhood_in[u]; ok { //if v_s has an edge from u
+			if _, ok := context.Subgraph[v_s].neighborhood_out[u]; !ok { //and v_s doesnt have edge to u then finish with one sided
+				*single_rest = ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood_in))
 				return
 			}
+			// if both directions exist, compute the intersection
 			intersection := make(map[uint64]void)
 			for key := range *single_rest {
-				if _, ok := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color)[key]; !ok {
+				if _, ok := ColoredNeighborhoodIn(context.Graph, v_g, context.Subgraph[u].attribute.color, len(context.Subgraph[u].neighborhood_in))[key]; !ok {
 					intersection[key] = void{}
 				}
 			}
@@ -329,31 +332,37 @@ func SingleUpdate(context *context, u uint64, v_s uint64, v_g uint64, single_inv
 	}
 }
 
-func ColoredNeighborhood(Graph graph, u uint64, c uint32) map[uint64]void {
+func ColoredNeighborhood(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood {
 		if Graph[v].attribute.color == c {
-			output[v] = void{}
+			if (!(*induced) && deg <= len(Graph[v].neighborhood)) || deg == len(Graph[v].neighborhood) { //if not induced allow the easier way
+				output[v] = void{}
+			}
 		}
 	}
 	return output
 }
 
-func ColoredNeighborhoodOut(Graph graph, u uint64, c uint32) map[uint64]void {
+func ColoredNeighborhoodOut(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood_out {
 		if Graph[v].attribute.color == c {
-			output[v] = void{}
+			if (!(*induced) && deg <= len(Graph[v].neighborhood_out)) || deg == len(Graph[v].neighborhood_out) { //if not induced allow the easier way
+				output[v] = void{}
+			}
 		}
 	}
 	return output
 }
 
-func ColoredNeighborhoodIn(Graph graph, u uint64, c uint32) map[uint64]void {
+func ColoredNeighborhoodIn(Graph graph, u uint64, c uint32, deg int) map[uint64]void {
 	output := make(map[uint64]void)
 	for v := range Graph[u].neighborhood_in {
 		if Graph[v].attribute.color == c {
-			output[v] = void{}
+			if (!(*induced) && deg <= len(Graph[v].neighborhood_in)) || deg == len(Graph[v].neighborhood_in) { //if not induced allow the easier way
+				output[v] = void{}
+			}
 		}
 	}
 	return output
