@@ -29,10 +29,10 @@ def read_array_from_file(file_path):
     return array
 
 # Load the CSV files
-df1 = pd.read_csv('dat/IMDB/branching0.csv')
-df2 = pd.read_csv('dat/IMDB/branching2.csv')
-df3 = pd.read_csv('dat/IMDB/branching3.csv')
-df4 = pd.read_csv('dat/IMDB/branching4.csv')
+df1 = pd.read_csv('dat/flybrain/branching0.csv')
+df2 = pd.read_csv('dat/flybrain/branching2.csv')
+df3 = pd.read_csv('dat/flybrain/branching3.csv')
+df4 = pd.read_csv('dat/flybrain/branching4.csv')
 
 # Ensure the Depth column is treated as numeric
 df1['Depth'] = pd.to_numeric(df1['Depth'])
@@ -41,13 +41,13 @@ df3['Depth'] = pd.to_numeric(df3['Depth'])
 df4['Depth'] = pd.to_numeric(df4['Depth'])
 
 # Read the hair data
-hair_array1 = read_array_from_file('dat/IMDB/hair0.txt')
+hair_array1 = read_array_from_file('dat/flybrain/hair0.txt')
 hair_depth1 = np.arange(len(hair_array1))
-hair_array2 = read_array_from_file('dat/IMDB/hair2.txt')
+hair_array2 = read_array_from_file('dat/flybrain/hair2.txt')
 hair_depth2 = np.arange(len(hair_array2))
-hair_array3 = read_array_from_file('dat/IMDB/hair3.txt')
+hair_array3 = read_array_from_file('dat/flybrain/hair3.txt')
 hair_depth3 = np.arange(len(hair_array3))
-hair_array4 = read_array_from_file('dat/IMDB/hair4.txt')
+hair_array4 = read_array_from_file('dat/flybrain/hair4.txt')
 hair_depth4 = np.arange(len(hair_array4))
 
 # Create a figure with two subplots

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Path to the executable
-executable="./gnp"
+executable="./subgraph_isomorphism"
 
 # Define the prior values
 prior_values=(0 2 4 5)
@@ -42,7 +42,7 @@ run_and_monitor() {
     echo "Success,Memory,Time" > "$log_file"
     
     for i in {1..100}; do
-        output=$(timeout -s SIGINT 2m time -v $executable -subset=$subset -prior=$prior -gnp -n=$n -p=$p 2>&1 > /dev/null)
+        output=$(timeout -s SIGINT 2m time -v $executable -subset=100 -prior=$prior -gnp -n=$n -p=$p 2>&1 > /dev/null)
 
         exit_code=$?
 
@@ -68,27 +68,27 @@ run_and_monitor() {
 fixed_avg_degree=4
 for prior in "${prior_values[@]}"; do
     for n in "${n_values[@]}"; do
-        p=$(echo "scale=4; $fixed_avg_degree / $n" | bc)
-        run_and_monitor "fixed_avg_degree" "$prior" "$n" "$fixed_avg_degree" "0.1" &
+        # p=$(echo "scale=4; $fixed_avg_degree / $n" | bc)
+        run_and_monitor "only" "$prior" "$n" "$fixed_avg_degree" "0.1"
     done
 done
 
-# Run for fixed n and varying avg_degree
-fixed_n=1000
-for prior in "${prior_values[@]}"; do
-    for avg_degree in "${avg_degree_values[@]}"; do
-        run_and_monitor "fixed_n" "$prior" "$fixed_n" "$avg_degree" "0.1" &
-    done
-done
+# # Run for fixed n and varying avg_degree
+# fixed_n=1000
+# for prior in "${prior_values[@]}"; do
+#     for avg_degree in "${avg_degree_values[@]}"; do
+#         run_and_monitor "fixed_n" "$prior" "$fixed_n" "$avg_degree" "0.1" &
+#     done
+# done
 
-# Run for constant n and avg_degree but varying fraction of G in S
-constant_n=1000
-constant_avg_degree=4
-constant_p=$(echo "scale=4; $constant_avg_degree / $constant_n" | bc)
-for prior in "${prior_values[@]}"; do
-    for proportion in "${proportion_values[@]}"; do
-        run_and_monitor "constant_n_avg_degree" "$prior" "$constant_n" "$constant_avg_degree" "$proportion" &
-    done
-done
+# # Run for constant n and avg_degree but varying fraction of G in S
+# constant_n=1000
+# constant_avg_degree=4
+# constant_p=$(echo "scale=4; $constant_avg_degree / $constant_n" | bc)
+# for prior in "${prior_values[@]}"; do
+#     for proportion in "${proportion_values[@]}"; do
+#         run_and_monitor "constant_n_avg_degree" "$prior" "$constant_n" "$constant_avg_degree" "$proportion" &
+#     done
+# done
 
 wait
