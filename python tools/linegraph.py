@@ -171,11 +171,11 @@ def check_matching(graph, subgraph):
             g = json.loads(line.strip())
             for key, val in g.items():
                 if not graph.nodes[int(key)]["color"] == subgraph.nodes[val]["color"]:
-                    print("fucking up color", graph.nodes[key]["color"], subgraph.nodes[val]["color"])
+                    print("wrong color", graph.nodes[key]["color"], subgraph.nodes[val]["color"])
             temp = format_as_array(g)
             for u, v in subgraph.edges():
                 if not graph.has_edge(temp[u], temp[v]):
-                    print("fucking up edge")
+                    print("wrong edge", temp[u], temp[v])
 
     start2 = time.time()
     graph_matcher = isomorphism.GraphMatcher(graph, subgraph, node_match=colors_match)
