@@ -50,7 +50,7 @@ func main() {
 	out_fname := flag.String("out", "dat/output.txt", "output location")
 	input_fmt := flag.String("fmt", "json", "The file format to read\njson node-link,folder to .edges,.labels")
 	input_parse := flag.String("parse", "%d\t%d", "The parse format of reading from file, used only for folder fmt")
-	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4")
+	prior_policy = flag.Int("prior", 0, "the prior of the information we gain from vertex, based on our method S=0,G=1 or Constant=2, Random=3,Gready based on S=4,Combined Method S=5")
 	directed = flag.Bool("directed", false, "change to directed graphs, default is automaticly undirected")
 	induced = flag.Bool("induced", false, "change to induced subgraph, default is automaticly non-induced")
 	flag.Parse()
@@ -66,6 +66,24 @@ func main() {
 	defer output_file.Close()
 	G := ReadGraph(flag.Args()[0], *input_fmt, *input_parse)
 	S := ReadGraph(flag.Args()[1], *input_fmt, *input_parse)
+
+	var wg sync.WaitGroup
+	if *prior_policy == 5 {
+		wg.Add(2)
+		prior := calculatePrior(S, G, 0)
+		go func() {
+			FindAll(G, S, prior)
+			wg.Done()
+		}()
+		prior = calculatePrior(S, G, 4)
+		go func() {
+			FindAll(G, S, prior)
+			wg.Done()
+		}()
+		wg.Wait()
+		fmt.Println("done")
+		return
+	}
 
 	prior := calculatePrior(S, G, *prior_policy)
 	matches := FindAll(G, S, prior)
@@ -155,6 +173,8 @@ func RestrictionScore[T any](rest map[uint64]map[uint64]T, prior map[uint64]floa
 	case 3:
 		return rand.Float32()
 	case 4:
+		return prior[u]
+	case 5:
 		return prior[u]
 	}
 	return 0
