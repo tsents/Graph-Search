@@ -85,11 +85,8 @@ $ ./subgraph_isomorphism -h
     ```
 
 ### Outputs:
-Results are saved in the `dat/` directory and include:
+Results are saved in the `dat/` directory by defualt and include:
 - Subgraph isomorphism matches.
-- Depth and branching factor logs (if enabled).
-- Profiling data (if enabled).
-
 ## Notes
 
 - The project includes a `.gitignore` file to exclude temporary files, logs, and outputs.
