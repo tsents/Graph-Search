@@ -67,29 +67,32 @@ func main() {
 	G := ReadGraph(flag.Args()[0], *input_fmt, *input_parse)
 	S := ReadGraph(flag.Args()[1], *input_fmt, *input_parse)
 
+	prior := calculatePrior(S, G, *prior_policy)
+	matches := FindAll(G, S, prior)
+	fmt.Println("matches", matches)
+}
+
+func calculatePrior(S, G graph, prior_policy int) map[uint64]float32 {
 	prior := make(map[uint64]float32)
-	switch *prior_policy {
-	case 0: //d^2 in S
+	switch prior_policy {
+	case 0: // d^2 in S
 		for v := range S {
-			// prior[v] += float32(len(Subgraph[v].neighborhood))
 			for u := range S[v].neighborhood {
 				prior[v] += float32(len(S[u].neighborhood))
 			}
 		}
-	case 1: //d^2 in G
+	case 1: // d^2 in G
 		for v := range G {
-			// prior[v] += float32(len(Graph[v].neighborhood))
 			for u := range G[v].neighborhood {
 				prior[v] += float32(len(G[u].neighborhood))
 			}
 		}
-	case 4: //d in S
+	case 4: // d in S
 		for v := range S {
 			prior[v] = float32(len(S[v].neighborhood))
 		}
 	}
-	matches := FindAll(G, S, prior)
-	fmt.Println("matches", matches)
+	return prior
 }
 
 func ChooseNext[T any](restrictions map[uint64]map[uint64]T, chosen map[uint64]void, Subgraph graph, prior map[uint64]float32) uint64 {
