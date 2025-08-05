@@ -218,17 +218,10 @@ def algo_cpp_command(g, s, name):
 def main(G, s, folder):
 
     results = [
-               # run_with_measurement(algo_cpp_command, "VF3", G, s),
-               run_with_measurement(algo_cpp_command, "velcro", str(folder / "g_for_clique"), str(folder / "s_clique"))]
-               # run_with_measurement(vf2_algo, "VF2++", G, s)]
+               run_with_measurement(algo_cpp_command, "VF3", G, s),
+               run_with_measurement(algo_cpp_command, "velcro", str(folder / "g_for_clique"), str(folder / "s_clique")),
+               run_with_measurement(vf2_algo, "VF2++", G, s)]
 
-    # Replace with your actual algorithms
-    # Add more algorithms as needed
-
-    # df = pd.DataFrame(results)
-    # output_csv = folder / "runtime_memory_results.csv"
-    # df.to_csv(output_csv, index=False)
-    # print("Results saved to", output_csv)
     for result in results:
         save_result_by_algorithm(result, folder)
 
