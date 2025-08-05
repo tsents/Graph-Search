@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 # Plot distribution as lines
 from scipy.stats import gaussian_kde
+from matplotlib.ticker import FuncFormatter
 
 
 plt.rcParams["font.family"] = "DejaVu Serif"
@@ -98,7 +99,7 @@ def time_to_seconds(time_str):
 
 # Define the directories (groups) and labels for the groups
 group_dirs = ["dat/logs-wiki2009", "dat/logs-IMDB3", "dat/logs-flybrain3"]
-group_labels = ["wiki20009", "IMDB", "flybrain"]
+group_labels = ["wiki2009", "IMDB", "flybrain"]
 
 n_priors = 6  # each group has 6 priors (output_prior_0_0.csv, output_prior_1_0.csv, ..., output_prior_5_0.csv)
 
@@ -163,6 +164,7 @@ for i in permuted_indices:
     offset = (k - ((n_methods+1)/ 2)) * bar_width
     axs[1].bar(x + offset, metrics_memory_success[:, i], width=bar_width,
                label=names[i],color=colors[i])
+axs[1].yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.0e}'.replace('+0', '').replace('+', '')))
 axs[1].set_ylabel("Average Memory at Success (Kilobytes)")
 axs[1].set_title("Memory at Success per Method")
 axs[1].set_xticks(x)
@@ -365,6 +367,9 @@ for col_index, directory in enumerate(directories):
         if col_index != 0:
             ax.set_yticklabels([])
             ax.set_yticks([])
+        if row_index != 2:
+            ax.set_xticklabels([])
+            ax.set_xticks([])
 
 # Final layout and display
 plt.tight_layout()
